@@ -36,7 +36,7 @@ export function AnalysisForm({ loading, onSubmit }: Props) {
         </div>
         </div>
         <span className="rounded-md border border-moss/20 bg-moss/10 px-3 py-1.5 text-xs font-bold text-moss">
-          API 연결됨
+          Mock 데이터
         </span>
       </div>
 
