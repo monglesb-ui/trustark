@@ -78,7 +78,7 @@ const pipelineItems: Array<[string, string, LucideIcon]> = agentSteps.slice(0, 4
 
 type AnalysisStage = "idle" | "analyzing" | "report";
 
-const stepDelayMs = 420;
+const stepDelayMs = 820;
 
 function wait(ms: number) {
   return new Promise((resolve) => {
@@ -88,20 +88,23 @@ function wait(ms: number) {
 
 function AnalyzingPanel({ activeStep }: { activeStep: number }) {
   const progress = Math.min(100, Math.round(((activeStep + 1) / agentSteps.length) * 100));
+  const currentAgent = agentSteps[activeStep] ?? agentSteps[agentSteps.length - 1];
+  const CurrentIcon = currentAgent.Icon;
   const visibleLogs = agentSteps.flatMap((step, stepIndex) =>
     step.logs
       .filter((_, logIndex) => stepIndex < activeStep || (stepIndex === activeStep && logIndex <= Math.min(1, activeStep)))
       .map((message) => ({ agent: step.name, message }))
   );
+  const latestLog = visibleLogs[visibleLogs.length - 1];
 
   return (
     <section className="dashboard-panel overflow-hidden p-0">
       <div className="border-b border-ink/10 bg-ink px-6 py-5 text-white">
-      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-md bg-white/10 text-white">
-          <LoaderCircle aria-hidden="true" size={21} className="animate-spin" />
-        </span>
-        <div>
+            <LoaderCircle aria-hidden="true" size={21} className="animate-spin" />
+          </span>
+          <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-white/55">Trust Ark Agent Runtime</p>
             <h2 className="mt-1 text-xl font-bold">리스크 분석 진행 중</h2>
             <p className="mt-1 text-sm text-white/68">RAG와 전문 Agent가 계약 리스크 근거를 단계별로 조립하고 있습니다.</p>
@@ -110,9 +113,32 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
             {progress}% 완료
           </div>
         </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
+          <div className="rounded-md border border-white/15 bg-white/10 p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-md bg-moss text-white">
+                <CurrentIcon aria-hidden="true" size={18} />
+              </span>
+              <div>
+                <p className="text-xs font-black text-white/45">현재 실행 Agent</p>
+                <p className="font-black">{currentAgent.name}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-white/70">{currentAgent.role}</p>
+            <p className="mt-3 rounded-md bg-white/10 px-3 py-2 text-xs font-bold text-white/75">{currentAgent.preview}</p>
+          </div>
+          <div className="rounded-md border border-white/15 bg-white/10 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-black text-white/45">Live Trace</p>
+              <span className="rounded-md bg-white/10 px-2 py-1 text-[0.68rem] font-black text-white/60">latest</span>
+            </div>
+            <p className="text-sm font-black text-mint">{latestLog?.agent ?? currentAgent.name}</p>
+            <p className="mt-2 text-sm leading-6 text-white/75">{latestLog?.message ?? "Agent runtime을 준비하고 있습니다."}</p>
+          </div>
+        </div>
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-moss transition-all duration-500" style={{ width: `${progress}%` }} />
-      </div>
+          <div className="h-full rounded-full bg-moss transition-all duration-700" style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
       <div className="grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
