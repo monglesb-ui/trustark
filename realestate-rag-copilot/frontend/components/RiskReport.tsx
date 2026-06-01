@@ -1,6 +1,18 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Download, FileText, Gauge, LayoutDashboard, ListChecks, Scale, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Download,
+  FileText,
+  Gauge,
+  LayoutDashboard,
+  ListChecks,
+  Scale,
+  ShieldAlert,
+  TrendingUp
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import type { AnalyzeResponse } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
@@ -13,6 +25,17 @@ function money(value?: number | null) {
   return `${formatter.format(value)}원`;
 }
 
+function sourceLabel(source: string) {
+  if (source.startsWith("rag_docs")) return "RAG 문서";
+  if (source.startsWith("risk_rule")) return "규칙 엔진";
+  if (source.includes("mock")) return "Mock 시세";
+  return source;
+}
+
+function todayLabel() {
+  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(new Date());
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -23,18 +46,31 @@ function escapeHtml(value: string) {
 }
 
 function makeReportHtml(report: AnalyzeResponse) {
+  const riskSignals = report.risk_signals ?? [];
+  const signalItems = riskSignals
+    .map(
+      (item) => `
+        <li>
+          <strong>${escapeHtml(item.title)}</strong>
+          <p>${escapeHtml(item.description)}</p>
+          <small>${escapeHtml(item.severity)} · ${escapeHtml(item.metric)} · ${escapeHtml(sourceLabel(item.source))}</small>
+        </li>`
+    )
+    .join("");
   const evidenceItems = report.evidence
     .map(
       (item) => `
         <li>
           <strong>${escapeHtml(item.title)}</strong>
           <p>${escapeHtml(item.description)}</p>
-          <small>출처: ${escapeHtml(item.source)}</small>
+          <small>출처: ${escapeHtml(sourceLabel(item.source))} · ${escapeHtml(item.source)}</small>
         </li>`
     )
     .join("");
   const actionItems = report.next_actions.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const warningItems = report.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const confirmedItems = report.sections.confirmed_facts.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const unverifiedItems = report.sections.unverified_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
 
   return `<!doctype html>
 <html lang="ko">
@@ -43,13 +79,14 @@ function makeReportHtml(report: AnalyzeResponse) {
   <title>Trust Ark 계약 리스크 리포트</title>
   <style>
     body { margin: 0; padding: 48px; font-family: "Noto Sans KR", system-ui, sans-serif; color: #222019; background: #f5f2ea; }
-    main { max-width: 860px; margin: 0 auto; background: white; border: 1px solid #e7e2d6; padding: 48px; }
+    main { max-width: 900px; margin: 0 auto; background: white; border: 1px solid #e7e2d6; padding: 48px; }
     .kicker { color: #2f6b4d; font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
     h1 { font-family: Georgia, "Noto Serif KR", serif; font-size: 34px; margin: 12px 0 8px; }
     h2 { margin-top: 34px; border-top: 1px solid #e7e2d6; padding-top: 22px; font-size: 20px; }
-    .summary { background: #f4e4e1; border: 1px solid #e7c8c2; padding: 18px; border-radius: 10px; }
+    .summary { background: #f4e4e1; border: 1px solid #e7c8c2; padding: 22px; border-radius: 10px; }
     .score { font-size: 42px; font-weight: 900; color: #a8453a; }
-    dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .meta { color: #817c6f; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     dt { color: #817c6f; font-size: 12px; }
     dd { margin: 4px 0 0; font-weight: 800; }
     li { margin: 12px 0; line-height: 1.65; }
@@ -61,21 +98,28 @@ function makeReportHtml(report: AnalyzeResponse) {
   <main>
     <div class="kicker">Trust Ark · 부동산 계약 리스크 코파일럿</div>
     <h1>전세 계약 사전 위험 검토 리포트</h1>
-    <p>${escapeHtml(report.location.address)}</p>
+    <p class="meta">${escapeHtml(report.location.address)} · 생성일 ${todayLabel()} · Mock 분석</p>
     <section class="summary">
       <strong>종합 위험도: ${escapeHtml(report.risk_level)}</strong>
       <div class="score">${report.risk_score}</div>
       <p>${escapeHtml(report.summary)}</p>
     </section>
     <h2>시세 적정성</h2>
-    <dl>
+    <dl class="grid">
       <div><dt>입력 보증금</dt><dd>${money(report.market_comparison.input_deposit)}</dd></div>
       <div><dt>주변 평균 보증금</dt><dd>${money(report.market_comparison.nearby_avg_deposit)}</dd></div>
       <div><dt>차이율</dt><dd>${report.market_comparison.difference_rate}%</dd></div>
       <div><dt>표본 수</dt><dd>${report.market_comparison.sample_size}건</dd></div>
     </dl>
+    <h2>핵심 위험 신호</h2>
+    <ul>${signalItems || evidenceItems}</ul>
     <h2>핵심 근거</h2>
     <ul>${evidenceItems}</ul>
+    <h2>확인/미확인 항목</h2>
+    <div class="grid">
+      <div><strong>확인된 사실</strong><ul>${confirmedItems}</ul></div>
+      <div><strong>미확인 항목</strong><ul>${unverifiedItems}</ul></div>
+    </div>
     <h2>다음 확인 액션</h2>
     <ol>${actionItems}</ol>
     <h2>주의 문구</h2>
@@ -106,6 +150,16 @@ function SectionTitle({ number, title, description }: { number: string; title: s
       {description ? <span className="ml-auto text-xs font-bold text-ink/50">{description}</span> : null}
     </div>
   );
+}
+
+function SeverityPill({ severity }: { severity: string }) {
+  const className = severity.includes("높음")
+    ? "bg-clay/10 text-clay"
+    : severity.includes("낮음")
+      ? "bg-moss/10 text-moss"
+      : "bg-brass/10 text-brass";
+
+  return <span className={`rounded-md px-2.5 py-1 text-xs font-black ${className}`}>{severity}</span>;
 }
 
 export function RiskReport({ report }: { report: AnalyzeResponse }) {
@@ -141,6 +195,12 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
     ],
     [report]
   );
+  const generatedAt = todayLabel();
+  const confidenceItems = [
+    ["시세 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.sample_size >= 5 ? "보통" : "낮음"],
+    ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
+    ["권리관계", "미확인", "추가 필요"]
+  ];
 
   return (
     <div className="grid gap-5">
@@ -151,6 +211,10 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
         <div className="min-w-0">
           <h2 className="font-bold text-ink">{report.location.address}</h2>
           <p className="text-sm text-ink/60">전세 · 빌라 · 보증금 {money(report.market_comparison.input_deposit)} · 분석 완료</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-xs font-bold text-ink/60">
+          <CalendarDays aria-hidden="true" size={15} className="text-moss" />
+          {generatedAt}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-bold text-ink/45">레이아웃</span>
@@ -227,11 +291,12 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
               {displaySignals.map((item, index) => (
                 <div key={`${item.source}-doc-${index}`} className="rounded-md border border-ink/10 bg-white p-4">
                   <div className="mb-2 flex items-center gap-2">
-                    <span className="rounded-md bg-clay/10 px-2 py-1 text-xs font-black text-clay">{item.severity}</span>
+                    <SeverityPill severity={item.severity} />
                     <span className="text-xs font-bold text-ink/45">{item.metric}</span>
                   </div>
                   <h3 className="font-bold">{item.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-ink/70">{item.description}</p>
+                  <p className="mt-3 text-xs font-bold text-ink/45">출처: {sourceLabel(item.source)} · {item.source}</p>
                 </div>
               ))}
             </div>
@@ -250,6 +315,24 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
               ))}
             </ol>
           </section>
+
+          <section className="mt-8">
+            <SectionTitle number="05" title="검토 상태" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
+                <h3 className="font-bold text-ink">확인된 사실</h3>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/70">
+                  {report.sections.confirmed_facts.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-md border border-clay/20 bg-clay/10 p-4">
+                <h3 className="font-bold text-ink">미확인 항목</h3>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/70">
+                  {report.sections.unverified_items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+          </section>
         </article>
       ) : (
       <>
@@ -262,10 +345,14 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
             </div>
             <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-sm">현재 데이터 기준</span>
-              <span className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-sm">추가 확인 필요</span>
-              <span className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-sm">전문가 검토 권장</span>
+            <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              {confidenceItems.map(([label, value, status]) => (
+                <div key={label} className="rounded-md border border-white/70 bg-white/80 p-3 shadow-sm">
+                  <p className="text-[0.7rem] font-black uppercase text-ink/45">{label}</p>
+                  <p className="mt-1 text-sm font-black text-ink">{value}</p>
+                  <p className="mt-1 text-xs font-bold text-ink/55">{status}</p>
+                </div>
+              ))}
             </div>
           </div>
           <div className="metric-tile grid place-items-center p-5 text-center">
@@ -282,16 +369,17 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
         <SectionTitle number="01" title="핵심 위험 신호" description={`${keySignals.length}개 감지`} />
         <div className="grid gap-3 md:grid-cols-2">
           {displaySignals.map((item, index) => (
-            <article key={`${item.source}-${index}`} className="rounded-md border border-ink/10 bg-white p-4">
+            <article key={`${item.source}-${index}`} className="rounded-md border border-ink/10 bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="rounded-md bg-clay/10 px-2.5 py-1 text-xs font-black text-clay">
-                  {item.severity}
-                </span>
+                <SeverityPill severity={item.severity} />
                 <span className="text-xs font-bold text-ink/45">{item.metric}</span>
               </div>
               <h3 className="font-bold text-ink">{item.title}</h3>
               <p className="mt-2 text-sm leading-6 text-ink/70">{item.description}</p>
-              <p className="mt-3 text-xs font-bold text-ink/45">출처: {item.source}</p>
+              <div className="mt-4 flex items-center gap-2 border-t border-ink/10 pt-3 text-xs font-bold text-ink/45">
+                <ShieldAlert aria-hidden="true" size={14} className="text-moss" />
+                {sourceLabel(item.source)} · {item.source}
+              </div>
             </article>
           ))}
         </div>

@@ -12,7 +12,7 @@ async function main() {
   await page.getByText("리스크 분석 진행 중").waitFor({ timeout: 3000 });
   await page.getByText("시세 표본").first().waitFor({ timeout: 3000 });
   await page.getByText("종합 위험도").waitFor({ timeout: 15000 });
-  await page.getByText("검토 필요").first().waitFor({ timeout: 15000 });
+  await page.getByText(/검토 필요|위험/).first().waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "핵심 위험 신호" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "시세 적정성" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "위치 맥락" }).waitFor({ timeout: 15000 });

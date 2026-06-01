@@ -1,6 +1,12 @@
 import { FileSearch } from "lucide-react";
 import type { EvidenceItem } from "@/lib/types";
 
+function sourceLabel(source: string) {
+  if (source.startsWith("rag_docs")) return "RAG 문서";
+  if (source.startsWith("risk_rule")) return "규칙 엔진";
+  return "참조 데이터";
+}
+
 export function EvidenceList({ items }: { items: EvidenceItem[] }) {
   return (
     <section className="dashboard-panel p-5">
@@ -15,10 +21,14 @@ export function EvidenceList({ items }: { items: EvidenceItem[] }) {
       </div>
       <ul className="grid gap-3">
         {items.map((item, index) => (
-          <li key={`${item.source}-${index}`} className="rounded-md border border-ink/10 border-l-4 border-l-moss bg-mint/35 p-4">
-            <p className="font-bold">{item.title}</p>
+          <li key={`${item.source}-${index}`} className="rounded-md border border-ink/10 border-l-4 border-l-moss bg-white p-4 shadow-sm">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-moss/10 px-2 py-1 text-xs font-black text-moss">{sourceLabel(item.source)}</span>
+              <span className="text-xs font-bold text-ink/45">{String(index + 1).padStart(2, "0")}</span>
+            </div>
+            <p className="font-bold text-ink">{item.title}</p>
             <p className="mt-1 text-sm leading-6 text-ink/75">{item.description}</p>
-            <p className="mt-2 text-xs font-medium text-ink/55">출처: {item.source}</p>
+            <p className="mt-3 border-t border-ink/10 pt-2 text-xs font-medium text-ink/55">출처: {item.source}</p>
           </li>
         ))}
       </ul>

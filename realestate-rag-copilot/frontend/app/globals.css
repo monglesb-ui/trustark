@@ -28,6 +28,10 @@ body {
   font-family: var(--font-sans);
 }
 
+::selection {
+  background: rgba(184, 137, 47, 0.28);
+}
+
 button,
 input,
 select,
@@ -50,12 +54,23 @@ textarea {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 14px 38px rgba(31, 37, 35, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .metric-tile {
   border: 1px solid rgba(31, 37, 35, 0.1);
   border-radius: 8px;
   background: linear-gradient(180deg, #ffffff 0%, #faf8f1 100%);
+}
+
+.dashboard-panel,
+.metric-tile {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.dashboard-panel:hover,
+.metric-tile:hover {
+  border-color: rgba(47, 111, 97, 0.24);
 }
 
 :focus-visible {
