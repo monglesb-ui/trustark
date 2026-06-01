@@ -10,6 +10,9 @@ async function main() {
   await page.getByRole("button", { name: "리스크 분석" }).click({ noWaitAfter: true });
 
   await page.getByText("리스크 분석 진행 중").waitFor({ timeout: 3000 });
+  await page.getByText("Agent 실행 타임라인").waitFor({ timeout: 3000 });
+  await page.getByText("Live Trace").waitFor({ timeout: 3000 });
+  await page.getByText("RAG Evidence Agent").first().waitFor({ timeout: 3000 });
   await page.getByText("시세 표본").first().waitFor({ timeout: 3000 });
   await page.getByText("종합 위험도").waitFor({ timeout: 15000 });
   await page.getByText(/검토 필요|위험/).first().waitFor({ timeout: 15000 });
