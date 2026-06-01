@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-sans: "Pretendard Variable", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", "Noto Serif KR", Georgia, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(21, 83, 75, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(21, 83, 75, 0.035) 1px, transparent 1px),
+    #f5f2ea;
+  background-size: 36px 36px;
+  color: #1f2523;
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  min-height: 44px;
+}
+
+input,
+select,
+textarea {
+  border-radius: 6px;
+}
+
+.dashboard-panel {
+  border: 1px solid rgba(31, 37, 35, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 38px rgba(31, 37, 35, 0.08);
+}
+
+.metric-tile {
+  border: 1px solid rgba(31, 37, 35, 0.1);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #faf8f1 100%);
+}
+
+:focus-visible {
+  outline: 3px solid #b8892f;
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: -100%;
+  inset-inline-start: 1rem;
+  z-index: 1000;
+  border-radius: 6px;
+  background: #1f2523;
+  color: #fff;
+  padding: 0.75rem 1rem;
+}
+
+.skip-link:focus {
+  inset-block-start: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

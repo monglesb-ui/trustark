@@ -1,0 +1,53 @@
+flowchart TD
+    U["사용자"] --> FE["Next.js Frontend"]
+
+    FE --> FORM["계약 조건 입력 폼"]
+    FORM --> API_CLIENT["frontend/lib/api.ts"]
+    API_CLIENT --> ANALYZE["POST /analyze"]
+
+    subgraph BACKEND["FastAPI Backend"]
+        HEALTH["GET /health"]
+        ANALYZE_ROUTE["app/api/analyze.py"]
+
+        ANALYZE_ROUTE --> ORCH["Orchestrator"]
+
+        ORCH --> GEO["GeocodingService"]
+        ORCH --> SEARCH["SearchAgent"]
+        ORCH --> RISK["RiskAgent"]
+        ORCH --> RAG["RagEvidenceAgent"]
+        ORCH --> REPORT["ReportAgent"]
+        ORCH --> VALIDATION["ValidationAgent"]
+
+        SEARCH --> DATA_SERVICE["RealEstateDataService"]
+        DATA_SERVICE --> TX["mock_transactions.json"]
+        DATA_SERVICE --> POI["mock_poi.json"]
+
+        RISK --> SCORE["RiskScoringService"]
+        RAG --> RAG_SERVICE["RagService"]
+        RAG_SERVICE --> DOCS["rag_docs/jeonse_risk_checklist.md"]
+
+        REPORT --> REPORT_SERVICE["ReportService"]
+        VALIDATION --> SAFE["단정 표현 검증"]
+    end
+
+    ANALYZE --> ANALYZE_ROUTE
+
+    GEO --> LOCATION["mock 좌표"]
+    SEARCH --> MARKET["주변 거래 / 평균 시세 / marker"]
+    RISK --> RISK_RESULT["위험 점수 / 위험도 / 규칙 근거"]
+    RAG --> EVIDENCE["RAG 체크리스트 근거"]
+    REPORT --> JSON["리포트 JSON"]
+    SAFE --> JSON
+
+    JSON --> API_CLIENT
+
+    subgraph UI["Frontend Result UI"]
+        RISK_CARD["종합 위험도 카드"]
+        MARKET_CARD["주변 시세 비교"]
+        MAP["MapView / Naver Maps Placeholder"]
+        EVIDENCE_LIST["핵심 근거"]
+        ACTIONS["다음 액션"]
+        WARNINGS["주의 문구"]
+    end
+
+    API_CLIENT --> UI

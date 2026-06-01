@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant User as 사용자
+    participant FE as Next.js 화면
+    participant API as FastAPI /analyze
+    participant OR as Orchestrator
+    participant DA as SearchAgent
+    participant RA as RiskAgent
+    participant RAG as RagEvidenceAgent
+    participant RP as ReportAgent
+    participant VA as ValidationAgent
+
+    User->>FE: 주소/계약 조건 입력
+    FE->>API: POST /analyze
+    API->>OR: 분석 요청 전달
+
+    OR->>DA: mock 거래 데이터 검색
+    DA-->>OR: 주변 거래, 평균 시세, marker
+
+    OR->>RA: 위험 점수 계산
+    RA-->>OR: risk_score, risk_level, 위험 근거
+
+    OR->>RAG: 로컬 문서 검색
+    RAG-->>OR: 체크리스트 근거
+
+    OR->>RP: 리포트 JSON 생성
+    RP-->>OR: summary, evidence, next_actions
+
+    OR->>VA: 안전 표현 검증
+    VA-->>API: 최종 리포트
+
+    API-->>FE: 분석 결과 JSON
+    FE-->>User: 위험도/지도/근거/액션 표시
