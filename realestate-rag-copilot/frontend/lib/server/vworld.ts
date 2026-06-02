@@ -32,6 +32,8 @@ export type GeocodedAddress = {
   lat: number;
   lng: number;
   address: string;
+  roadAddress?: string;
+  parcelAddress?: string;
   source: string;
   addressType: VworldAddressType;
   legalDong?: string;

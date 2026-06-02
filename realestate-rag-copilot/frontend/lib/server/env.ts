@@ -14,6 +14,12 @@ export const serverEnv = {
 
   dataGoKrServiceKeyEncoded: process.env.DATA_GO_KR_SERVICE_KEY_ENCODED,
   dataGoKrServiceKeyDecoded: process.env.DATA_GO_KR_SERVICE_KEY_DECODED,
+  buildingHubServiceKeyEncoded:
+    process.env.BUILDING_HUB_SERVICE_KEY_ENCODED ??
+    process.env.BUILDING_REGISTER_SERVICE_KEY_ENCODED,
+  buildingHubServiceKeyDecoded:
+    process.env.BUILDING_HUB_SERVICE_KEY_DECODED ??
+    process.env.BUILDING_REGISTER_SERVICE_KEY_DECODED,
 
   vworldApiKey: process.env.VWORLD_API_KEY,
 

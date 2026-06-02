@@ -63,6 +63,8 @@ function parseNaverAddress(data: NaverGeocodeResponse, originalAddress: string) 
     lat,
     lng,
     address: item.roadAddress || item.jibunAddress || originalAddress,
+    roadAddress: item.roadAddress,
+    parcelAddress: item.jibunAddress,
     source: "naver:maps:geocode",
     addressType: item.roadAddress ? "road" : "parcel",
     legalDong: legalDongFromElements(item.addressElements)

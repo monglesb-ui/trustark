@@ -6,6 +6,7 @@ import {
   Bot,
   CheckCircle2,
   Database,
+  FileBadge,
   FileSearch,
   LoaderCircle,
   MapPinned,
@@ -80,6 +81,19 @@ const agentSteps: AgentStep[] = [
       "네이버 지도 지오코딩으로 입력 주소의 좌표를 확인합니다.",
       "대상 좌표와 실거래 표본 marker를 같은 지도 맥락에 배치합니다.",
       "좌표 또는 표본 부족이 있으면 리포트의 데이터 상태에 fallback 근거를 남깁니다."
+    ]
+  },
+  {
+    name: "Building Register Agent",
+    shortName: "건축물대장",
+    role: "건축HUB 표제부에서 건물 용도, 사용승인일, 위반건축물 여부를 확인합니다.",
+    preview: "표제부 조회 · 주용도 · 사용승인일 · 위반건축물 여부",
+    Icon: FileBadge,
+    logs: [
+      "법정동코드와 지번을 건축HUB 조회 파라미터로 변환합니다.",
+      "건축물대장 표제부 API를 호출해 건물 기본 정보를 확인합니다.",
+      "주용도, 사용승인일, 위반건축물 여부를 리포트 근거로 분리합니다.",
+      "호실별 전유부나 등기부등본이 필요한 항목은 미확인으로 남깁니다."
     ]
   },
   {

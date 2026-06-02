@@ -292,9 +292,11 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
   const rentStatus = statusById(report, "rent-market");
   const saleStatus = statusById(report, "sale-market");
   const searchStatus = statusById(report, "search-context");
+  const buildingStatus = statusById(report, "building-register");
   const marketConfidence = rentStatus?.status === "success" && saleStatus?.status === "success" ? "높음" : "중간";
   const locationConfidence = geocodingStatus?.status === "success" ? "높음" : "낮음";
   const searchConfidence = searchStatus?.status === "success" ? "중간" : "낮음";
+  const buildingConfidence = buildingStatus?.status === "success" ? "중간" : "낮음";
 
   return [
     {
@@ -366,6 +368,24 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       whyItMatters: "같은 법정동 안에서도 역세권, 학교, 도로, 단지 위치에 따라 가격 표본의 의미가 달라질 수 있습니다.",
       nextCheck: ["지도상 대상 위치와 실제 주소 일치 확인", "주변 표본이 동일 생활권인지 확인", "필요하면 반경·면적 기준으로 표본 재조회"],
       traces: tracesForAgent(report, "Location Context Agent")
+    },
+    {
+      name: "Building Register Agent",
+      status: "완료",
+      purpose: "건축HUB 건축물대장 표제부를 조회해 주용도, 사용승인일, 위반건축물 여부를 계약 리스크 맥락에 반영했습니다.",
+      judgment:
+        buildingStatus?.status === "success"
+          ? "건축물대장 기반 용도와 건물 기본 정보를 확보했습니다. 다만 전유부·호실별 상세 정보는 추가 확인이 필요합니다."
+          : "건축물대장 표제부가 확보되지 않아 용도, 위반건축물, 사용승인일을 원문으로 확인해야 합니다.",
+      evidence: [
+        `건축물대장: ${statusText(buildingStatus)}`,
+        "표제부 조회는 건물 기본 현황 확인용이며, 호실별 전유부·권리관계 확인을 대체하지 않습니다.",
+        "오피스텔·상가주택·다가구는 용도와 전입 가능 여부를 별도로 확인해야 합니다."
+      ],
+      confidence: buildingConfidence,
+      whyItMatters: "건축물대장의 용도와 위반건축물 여부는 보증보험, 전입신고, 대항력 판단에서 중요한 사전 확인 항목입니다.",
+      nextCheck: ["건축물대장 원문에서 위반건축물 여부 확인", "전유부/호실 정보와 계약 대상 일치 여부 확인", "용도가 주거 사용과 충돌하지 않는지 확인"],
+      traces: tracesForAgent(report, "Building Register Agent")
     },
     {
       name: "Risk Scoring Agent",
