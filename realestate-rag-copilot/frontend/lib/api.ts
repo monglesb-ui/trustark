@@ -4,6 +4,7 @@ import { publicEnv } from "./public-env";
 
 const API_BASE_URL = publicEnv.trustArkApiBaseUrl;
 const LOCAL_API_BASE_URL = "http://127.0.0.1:8000";
+const INTERNAL_API_PATH = "/api/analyze";
 
 function shouldUseLocalApi() {
   if (API_BASE_URL) return false;
@@ -13,13 +14,10 @@ function shouldUseLocalApi() {
 
 export async function analyzeContract(payload: AnalyzeRequest): Promise<AnalyzeResponse> {
   const baseUrl = API_BASE_URL ?? (shouldUseLocalApi() ? LOCAL_API_BASE_URL : null);
-
-  if (!baseUrl) {
-    return buildMockAnalysis(payload);
-  }
+  const endpoint = baseUrl ? `${baseUrl}/analyze` : INTERNAL_API_PATH;
 
   try {
-    const response = await fetch(`${baseUrl}/analyze`, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
