@@ -52,6 +52,7 @@ export type SaleMarketSummary = {
 export type MarketApiAttempt = {
   dealMonth: string;
   ok: boolean;
+  keyType?: "encoded" | "decoded";
   httpStatus?: number;
   itemCount?: number;
   error?: string;
@@ -90,8 +91,15 @@ const ROWHOUSE_TRADE_ENDPOINT: RentEndpoint = {
   url: "https://apis.data.go.kr/1613000/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade"
 };
 
-function getServiceKey() {
-  return serverEnv.dataGoKrServiceKeyEncoded ?? serverEnv.dataGoKrServiceKeyDecoded;
+function getServiceKeys() {
+  const keys: Array<{ key: string; type: "encoded" | "decoded" }> = [];
+  if (serverEnv.dataGoKrServiceKeyEncoded) {
+    keys.push({ key: serverEnv.dataGoKrServiceKeyEncoded, type: "encoded" });
+  }
+  if (serverEnv.dataGoKrServiceKeyDecoded && serverEnv.dataGoKrServiceKeyDecoded !== serverEnv.dataGoKrServiceKeyEncoded) {
+    keys.push({ key: serverEnv.dataGoKrServiceKeyDecoded, type: "decoded" });
+  }
+  return keys;
 }
 
 function endpointFor(propertyType: string) {
@@ -204,97 +212,111 @@ function parseSaleTransactions(xml: string, dealMonth: string): SaleTransaction[
 }
 
 async function fetchRentTransactions(endpoint: RentEndpoint, lawdCode: string, dealMonth: string) {
-  const serviceKey = getServiceKey();
-  if (!serviceKey) {
+  const serviceKeys = getServiceKeys();
+  if (serviceKeys.length === 0) {
     return {
       items: [],
       attempt: { dealMonth, ok: false, error: "missing DATA_GO_KR service key" }
     };
   }
 
-  const url = new URL(endpoint.url);
-  url.searchParams.set("serviceKey", serviceKey);
-  url.searchParams.set("LAWD_CD", lawdCode);
-  url.searchParams.set("DEAL_YMD", dealMonth);
-  url.searchParams.set("pageNo", "1");
-  url.searchParams.set("numOfRows", "30");
+  let lastAttempt: MarketApiAttempt = { dealMonth, ok: false, error: "no service key attempted" };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  for (const serviceKey of serviceKeys) {
+    const url = new URL(endpoint.url);
+    url.searchParams.set("serviceKey", serviceKey.key);
+    url.searchParams.set("LAWD_CD", lawdCode);
+    url.searchParams.set("DEAL_YMD", dealMonth);
+    url.searchParams.set("pageNo", "1");
+    url.searchParams.set("numOfRows", "30");
 
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      cache: "no-store"
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
-    if (!response.ok) {
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        lastAttempt = { dealMonth, ok: false, keyType: serviceKey.type, httpStatus: response.status, error: await response.text() };
+        if (response.status === 401 || response.status === 403) continue;
+        return { items: [], attempt: lastAttempt };
+      }
+
+      const items = parseTransactions(await response.text(), dealMonth);
       return {
-        items: [],
-        attempt: { dealMonth, ok: false, httpStatus: response.status, error: await response.text() }
+        items,
+        attempt: { dealMonth, ok: items.length > 0, keyType: serviceKey.type, httpStatus: response.status, itemCount: items.length }
       };
+    } catch (error) {
+      lastAttempt = {
+        dealMonth,
+        ok: false,
+        keyType: serviceKey.type,
+        error: error instanceof Error ? error.message : "unknown rent fetch error"
+      };
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const items = parseTransactions(await response.text(), dealMonth);
-    return {
-      items,
-      attempt: { dealMonth, ok: items.length > 0, httpStatus: response.status, itemCount: items.length }
-    };
-  } catch (error) {
-    return {
-      items: [],
-      attempt: { dealMonth, ok: false, error: error instanceof Error ? error.message : "unknown rent fetch error" }
-    };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return { items: [], attempt: lastAttempt };
 }
 
 async function fetchSaleTransactions(endpoint: RentEndpoint, lawdCode: string, dealMonth: string) {
-  const serviceKey = getServiceKey();
-  if (!serviceKey) {
+  const serviceKeys = getServiceKeys();
+  if (serviceKeys.length === 0) {
     return {
       items: [],
       attempt: { dealMonth, ok: false, error: "missing DATA_GO_KR service key" }
     };
   }
 
-  const url = new URL(endpoint.url);
-  url.searchParams.set("serviceKey", serviceKey);
-  url.searchParams.set("LAWD_CD", lawdCode);
-  url.searchParams.set("DEAL_YMD", dealMonth);
-  url.searchParams.set("pageNo", "1");
-  url.searchParams.set("numOfRows", "30");
+  let lastAttempt: MarketApiAttempt = { dealMonth, ok: false, error: "no service key attempted" };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  for (const serviceKey of serviceKeys) {
+    const url = new URL(endpoint.url);
+    url.searchParams.set("serviceKey", serviceKey.key);
+    url.searchParams.set("LAWD_CD", lawdCode);
+    url.searchParams.set("DEAL_YMD", dealMonth);
+    url.searchParams.set("pageNo", "1");
+    url.searchParams.set("numOfRows", "30");
 
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      cache: "no-store"
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
-    if (!response.ok) {
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        lastAttempt = { dealMonth, ok: false, keyType: serviceKey.type, httpStatus: response.status, error: await response.text() };
+        if (response.status === 401 || response.status === 403) continue;
+        return { items: [], attempt: lastAttempt };
+      }
+
+      const items = parseSaleTransactions(await response.text(), dealMonth);
       return {
-        items: [],
-        attempt: { dealMonth, ok: false, httpStatus: response.status, error: await response.text() }
+        items,
+        attempt: { dealMonth, ok: items.length > 0, keyType: serviceKey.type, httpStatus: response.status, itemCount: items.length }
       };
+    } catch (error) {
+      lastAttempt = {
+        dealMonth,
+        ok: false,
+        keyType: serviceKey.type,
+        error: error instanceof Error ? error.message : "unknown sale fetch error"
+      };
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const items = parseSaleTransactions(await response.text(), dealMonth);
-    return {
-      items,
-      attempt: { dealMonth, ok: items.length > 0, httpStatus: response.status, itemCount: items.length }
-    };
-  } catch (error) {
-    return {
-      items: [],
-      attempt: { dealMonth, ok: false, error: error instanceof Error ? error.message : "unknown sale fetch error" }
-    };
-  } finally {
-    clearTimeout(timeout);
   }
+
+  return { items: [], attempt: lastAttempt };
 }
 
 function filterByContractType(transactions: RentTransaction[], contractType: AnalyzeRequest["contract_type"]) {
@@ -322,18 +344,18 @@ export async function lookupRentMarketSummary(
   propertyType: string,
   contractType: AnalyzeRequest["contract_type"]
 ): Promise<MarketLookupResult<RentMarketSummary>> {
-  const serviceKey = getServiceKey();
+  const serviceKeys = getServiceKeys();
   const endpoint = endpointFor(propertyType);
   const dealMonths = recentDealMonths();
   const diagnostics: MarketLookupDiagnostics = {
     endpointName: endpoint.name,
     lawdCode,
     dealMonths,
-    hasServiceKey: Boolean(serviceKey),
+    hasServiceKey: serviceKeys.length > 0,
     attempts: []
   };
 
-  if (!serviceKey || !lawdCode) return { summary: null, diagnostics };
+  if (serviceKeys.length === 0 || !lawdCode) return { summary: null, diagnostics };
 
   const collected: RentTransaction[] = [];
 
@@ -363,18 +385,18 @@ export async function lookupRentMarketSummary(
 }
 
 export async function lookupSaleMarketSummary(lawdCode: string, propertyType: string): Promise<MarketLookupResult<SaleMarketSummary>> {
-  const serviceKey = getServiceKey();
+  const serviceKeys = getServiceKeys();
   const endpoint = tradeEndpointFor(propertyType);
   const dealMonths = recentDealMonths(12);
   const diagnostics: MarketLookupDiagnostics = {
     endpointName: endpoint.name,
     lawdCode,
     dealMonths,
-    hasServiceKey: Boolean(serviceKey),
+    hasServiceKey: serviceKeys.length > 0,
     attempts: []
   };
 
-  if (!serviceKey || !lawdCode) return { summary: null, diagnostics };
+  if (serviceKeys.length === 0 || !lawdCode) return { summary: null, diagnostics };
 
   const collected: SaleTransaction[] = [];
 

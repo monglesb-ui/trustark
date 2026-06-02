@@ -83,9 +83,10 @@ function marketFailureDetail(diagnostics?: MarketLookupDiagnostics | null) {
   const status = [last.httpStatus ? `HTTP ${last.httpStatus}` : null, last.itemCount !== undefined ? `표본 ${totalItems}건` : null]
     .filter(Boolean)
     .join(" · ");
+  const key = last.keyType ? ` · key=${last.keyType}` : "";
   const error = last.error ? ` · ${last.error.slice(0, 80)}` : "";
 
-  return `${diagnostics.endpointName} · LAWD_CD ${diagnostics.lawdCode} · ${months} · ${status || "호출 실패"}${error}`;
+  return `${diagnostics.endpointName} · LAWD_CD ${diagnostics.lawdCode} · ${months} · ${status || "호출 실패"}${key}${error}`;
 }
 
 function applyGeocoding(report: AnalyzeResponse, geocode: GeocodeResult, payload: AnalyzeRequest) {
