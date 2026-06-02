@@ -22,7 +22,11 @@ export const serverEnv = {
     process.env.NAVER_MAPS_CLIENT_ID ??
     process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ??
     process.env.NEXT_PUBLIC_NAVER_MAPS_CLIENT_ID,
-  naverMapClientSecret: process.env.NAVER_MAP_CLIENT_SECRET,
+  naverMapClientSecret:
+    process.env.NAVER_MAP_CLIENT_SECRET ??
+    process.env.NAVER_MAPS_CLIENT_SECRET ??
+    process.env.NCP_MAP_CLIENT_SECRET ??
+    process.env.NCP_MAPS_CLIENT_SECRET,
 
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
 };

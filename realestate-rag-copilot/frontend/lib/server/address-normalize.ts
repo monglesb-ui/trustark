@@ -3,6 +3,7 @@ export function normalizeKoreanAddress(address: string) {
     .replace(/\([^)]*\)/g, " ")
     .replace(/\b\d+\s*층\b/g, " ")
     .replace(/\b\d+\s*호\b/g, " ")
+    .replace(/\b(?:지하|B)\s*\d+\s*층\b/gi, " ")
     .replace(/([가-힣]+(?:로|길))\s+(\d)/g, "$1$2")
     .replace(/\s+/g, " ")
     .trim();
@@ -13,6 +14,9 @@ export function addressSearchCandidates(address: string) {
   if (!normalized) return [];
 
   const candidates = [normalized];
+  const expandedSeoul = normalized.replace(/^서울시\s+/, "서울특별시 ");
+  if (expandedSeoul !== normalized) candidates.push(expandedSeoul);
+
   const hasSido = /(?:서울특별시|서울시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시|세종특별자치시|경기도|강원특별자치도|충청북도|충청남도|전북특별자치도|전라남도|경상북도|경상남도|제주특별자치도)/.test(normalized);
 
   if (!hasSido && /^[가-힣]+구\s/.test(normalized)) {
@@ -20,11 +24,21 @@ export function addressSearchCandidates(address: string) {
     candidates.push(`서울시 ${normalized}`);
   }
 
-  const spacedRoad = normalized.replace(/([가-힣]+로)(\d+길)/g, "$1 $2");
-  if (spacedRoad !== normalized) {
-    candidates.push(spacedRoad);
-    if (!hasSido && /^[가-힣]+구\s/.test(spacedRoad)) {
-      candidates.push(`서울특별시 ${spacedRoad}`);
+  for (const candidate of [...candidates]) {
+    const spacedRoad = candidate.replace(/([가-힣]+로)(\d+길)/g, "$1 $2");
+    if (spacedRoad !== candidate) {
+      candidates.push(spacedRoad);
+      if (!hasSido && /^[가-힣]+구\s/.test(spacedRoad)) {
+        candidates.push(`서울특별시 ${spacedRoad}`);
+      }
+    }
+
+    const compactRoad = candidate.replace(/([가-힣]+로)\s+(\d+길)/g, "$1$2");
+    if (compactRoad !== candidate) {
+      candidates.push(compactRoad);
+      if (!hasSido && /^[가-힣]+구\s/.test(compactRoad)) {
+        candidates.push(`서울특별시 ${compactRoad}`);
+      }
     }
   }
 
