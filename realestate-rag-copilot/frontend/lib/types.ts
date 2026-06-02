@@ -48,6 +48,17 @@ export type MarketComparison = {
   input_deposit?: number | null;
   input_monthly_rent?: number | null;
   input_sale_price?: number | null;
+  complex_name?: string | null;
+  match_mode?: "complex" | "regional" | "fallback";
+  regional_sample_size?: number;
+  rent_sample_size?: number;
+  sale_sample_size?: number;
+  latest_rent_deposit?: number | null;
+  latest_rent_monthly_rent?: number | null;
+  latest_rent_deal_month?: string | null;
+  latest_sale_price?: number | null;
+  latest_sale_deal_month?: string | null;
+  jeonse_ratio?: number | null;
   difference_rate: number;
   sample_size: number;
 };

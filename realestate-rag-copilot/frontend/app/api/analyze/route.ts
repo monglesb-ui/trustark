@@ -336,7 +336,7 @@ export async function POST(request: Request) {
     const legalDong = await lookupLegalDongCode(legalDongQuery);
     const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);
     const rentLookup = legalDong
-      ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type)
+      ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type, payload.address)
       : null;
     const rentSummary = rentLookup?.summary ?? null;
     const rentReport = rentSummary
@@ -344,7 +344,10 @@ export async function POST(request: Request) {
           id: "rent-market",
           label: "전월세 실거래가",
           status: "success",
-          detail: `표본 ${rentSummary.sampleSize}건 · 평균 보증금 ${rentSummary.averageDeposit ? rentSummary.averageDeposit.toLocaleString("ko-KR") : "-"}원`
+          detail:
+            rentSummary.matchMode === "complex"
+              ? `입력 단지 매칭 ${rentSummary.sampleSize}건 · 최근 ${rentSummary.latestTransaction ? rentSummary.latestTransaction.deposit.toLocaleString("ko-KR") : "-"}원 · 평균 ${rentSummary.averageDeposit ? rentSummary.averageDeposit.toLocaleString("ko-KR") : "-"}원`
+              : `단지 매칭 없음 · 지역 표본 ${rentSummary.sampleSize}건 · 평균 보증금 ${rentSummary.averageDeposit ? rentSummary.averageDeposit.toLocaleString("ko-KR") : "-"}원`
         })
       : withStatus(codedReport, {
         id: "rent-market",
@@ -352,7 +355,7 @@ export async function POST(request: Request) {
         status: legalDong ? "missing" : "fallback",
           detail: legalDong ? marketFailureDetail(rentLookup?.diagnostics) : "법정동코드 없음 · 대체 표본 유지"
         });
-    const saleLookup = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type) : null;
+    const saleLookup = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type, payload.address) : null;
     const saleSummary = saleLookup?.summary ?? null;
 
     const marketReport = saleSummary
@@ -360,7 +363,10 @@ export async function POST(request: Request) {
           id: "sale-market",
           label: "매매 실거래가",
           status: "success",
-          detail: `표본 ${saleSummary.sampleSize}건 · 평균 매매가 ${saleSummary.averageSalePrice ? saleSummary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`
+          detail:
+            saleSummary.matchMode === "complex"
+              ? `입력 단지 매칭 ${saleSummary.sampleSize}건 · 최근 ${saleSummary.latestTransaction ? saleSummary.latestTransaction.salePrice.toLocaleString("ko-KR") : "-"}원 · 평균 ${saleSummary.averageSalePrice ? saleSummary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`
+              : `단지 매칭 없음 · 지역 표본 ${saleSummary.sampleSize}건 · 평균 매매가 ${saleSummary.averageSalePrice ? saleSummary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`
         })
       : withStatus(rentReport, {
         id: "sale-market",

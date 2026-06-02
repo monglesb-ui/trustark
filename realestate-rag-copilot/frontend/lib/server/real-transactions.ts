@@ -34,8 +34,13 @@ export type RentMarketSummary = {
   lawdCode: string;
   dealMonths: string[];
   transactions: RentTransaction[];
+  complexName: string | null;
+  matchMode: "complex" | "regional";
+  regionalSampleSize: number;
+  matchedSampleSize: number;
   averageDeposit: number | null;
   averageMonthlyRent: number | null;
+  latestTransaction: RentTransaction | null;
   sampleSize: number;
 };
 
@@ -45,7 +50,12 @@ export type SaleMarketSummary = {
   lawdCode: string;
   dealMonths: string[];
   transactions: SaleTransaction[];
+  complexName: string | null;
+  matchMode: "complex" | "regional";
+  regionalSampleSize: number;
+  matchedSampleSize: number;
   averageSalePrice: number | null;
+  latestTransaction: SaleTransaction | null;
   sampleSize: number;
 };
 
@@ -142,6 +152,63 @@ function parseNumber(value?: string | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeComplexName(value?: string | null) {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .replace(/아파트|APT|apt/g, "")
+    .replace(/제?(\d+)단지/g, "$1")
+    .trim();
+}
+
+function extractComplexName(address: string) {
+  const compact = address.replace(/\s+/g, " ").trim();
+  const direct = compact.match(/([가-힣A-Za-z0-9·\-]+(?:아파트|단지|타운|마을|빌리지|빌라|맨션|자이|래미안|푸르지오|힐스테이트|롯데캐슬|아이파크|더샵)[가-힣A-Za-z0-9·\-]*)/);
+  if (direct?.[1]) return direct[1].replace(/^[\d\-]+/, "").trim();
+
+  const tokens = compact.split(" ");
+  const lastUseful = [...tokens].reverse().find((token) => /[가-힣]/.test(token) && !/^\d/.test(token));
+  return lastUseful && normalizeComplexName(lastUseful).length >= 4 ? lastUseful : null;
+}
+
+function selectComparableTransactions<T extends { label: string; buildingName?: string; dealMonth: string }>(
+  transactions: T[],
+  address: string
+) {
+  const complexName = extractComplexName(address);
+  const normalizedTarget = normalizeComplexName(complexName);
+
+  if (!complexName || normalizedTarget.length < 4) {
+    return {
+      transactions,
+      complexName,
+      matchMode: "regional" as const,
+      regionalSampleSize: transactions.length,
+      matchedSampleSize: 0
+    };
+  }
+
+  const matched = transactions.filter((item) => {
+    const normalizedItem = normalizeComplexName(item.buildingName || item.label);
+    if (!normalizedItem || normalizedItem.length < 3) return false;
+    return normalizedItem.includes(normalizedTarget) || normalizedTarget.includes(normalizedItem);
+  });
+
+  return {
+    transactions: matched.length > 0 ? matched : transactions,
+    complexName,
+    matchMode: matched.length > 0 ? ("complex" as const) : ("regional" as const),
+    regionalSampleSize: transactions.length,
+    matchedSampleSize: matched.length
+  };
+}
+
+function newestTransaction<T extends { dealMonth: string }>(transactions: T[]) {
+  return [...transactions].sort((a, b) => b.dealMonth.localeCompare(a.dealMonth))[0] ?? null;
+}
+
 function textOf(itemXml: string, names: string[]) {
   for (const name of names) {
     const match = itemXml.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
@@ -228,7 +295,7 @@ async function fetchRentTransactions(endpoint: RentEndpoint, lawdCode: string, d
     url.searchParams.set("LAWD_CD", lawdCode);
     url.searchParams.set("DEAL_YMD", dealMonth);
     url.searchParams.set("pageNo", "1");
-    url.searchParams.set("numOfRows", "30");
+    url.searchParams.set("numOfRows", "100");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -282,7 +349,7 @@ async function fetchSaleTransactions(endpoint: RentEndpoint, lawdCode: string, d
     url.searchParams.set("LAWD_CD", lawdCode);
     url.searchParams.set("DEAL_YMD", dealMonth);
     url.searchParams.set("pageNo", "1");
-    url.searchParams.set("numOfRows", "30");
+    url.searchParams.set("numOfRows", "100");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -342,7 +409,8 @@ function average(values: number[]) {
 export async function lookupRentMarketSummary(
   lawdCode: string,
   propertyType: string,
-  contractType: AnalyzeRequest["contract_type"]
+  contractType: AnalyzeRequest["contract_type"],
+  address: string
 ): Promise<MarketLookupResult<RentMarketSummary>> {
   const serviceKeys = getServiceKeys();
   const endpoint = endpointFor(propertyType);
@@ -363,11 +431,13 @@ export async function lookupRentMarketSummary(
     const result = await fetchRentTransactions(endpoint, lawdCode, dealMonth);
     diagnostics.attempts.push(result.attempt);
     collected.push(...result.items);
-    if (collected.length >= 8) break;
   }
 
-  const filtered = filterByContractType(collected, contractType).slice(0, 12);
-  if (filtered.length === 0) return { summary: null, diagnostics };
+  const regional = filterByContractType(collected, contractType);
+  if (regional.length === 0) return { summary: null, diagnostics };
+
+  const comparable = selectComparableTransactions(regional, address);
+  const filtered = comparable.transactions.slice(0, 12);
 
   return {
     summary: {
@@ -376,15 +446,24 @@ export async function lookupRentMarketSummary(
       lawdCode,
       dealMonths,
       transactions: filtered,
+      complexName: comparable.complexName,
+      matchMode: comparable.matchMode,
+      regionalSampleSize: comparable.regionalSampleSize,
+      matchedSampleSize: comparable.matchedSampleSize,
       averageDeposit: average(filtered.map((item) => item.deposit)),
       averageMonthlyRent: average(filtered.map((item) => item.monthlyRent)),
+      latestTransaction: newestTransaction(filtered),
       sampleSize: filtered.length
     },
     diagnostics
   };
 }
 
-export async function lookupSaleMarketSummary(lawdCode: string, propertyType: string): Promise<MarketLookupResult<SaleMarketSummary>> {
+export async function lookupSaleMarketSummary(
+  lawdCode: string,
+  propertyType: string,
+  address: string
+): Promise<MarketLookupResult<SaleMarketSummary>> {
   const serviceKeys = getServiceKeys();
   const endpoint = tradeEndpointFor(propertyType);
   const dealMonths = recentDealMonths(12);
@@ -404,10 +483,10 @@ export async function lookupSaleMarketSummary(lawdCode: string, propertyType: st
     const result = await fetchSaleTransactions(endpoint, lawdCode, dealMonth);
     diagnostics.attempts.push(result.attempt);
     collected.push(...result.items);
-    if (collected.length >= 8) break;
   }
 
-  const transactions = collected.slice(0, 12);
+  const comparable = selectComparableTransactions(collected, address);
+  const transactions = comparable.transactions.slice(0, 12);
   if (transactions.length === 0) return { summary: null, diagnostics };
 
   return {
@@ -417,7 +496,12 @@ export async function lookupSaleMarketSummary(lawdCode: string, propertyType: st
       lawdCode,
       dealMonths,
       transactions,
+      complexName: comparable.complexName,
+      matchMode: comparable.matchMode,
+      regionalSampleSize: comparable.regionalSampleSize,
+      matchedSampleSize: comparable.matchedSampleSize,
       averageSalePrice: average(transactions.map((item) => item.salePrice)),
+      latestTransaction: newestTransaction(transactions),
       sampleSize: transactions.length
     },
     diagnostics
@@ -460,6 +544,10 @@ export function applyRentMarketSummary(report: AnalyzeResponse, summary: RentMar
     .slice(0, 3)
     .map((item) => `${item.dealMonth} ${item.label} 보증금 ${Math.round(item.deposit / 10000).toLocaleString("ko-KR")}만원`)
     .join(", ");
+  const matchLabel =
+    summary.matchMode === "complex" && summary.complexName
+      ? `입력 단지명 "${summary.complexName}"과 매칭된`
+      : `입력 단지명 매칭이 없어 ${summary.lawdCode} 지역 기준으로 조회한`;
 
   return {
     ...report,
@@ -469,13 +557,20 @@ export function applyRentMarketSummary(report: AnalyzeResponse, summary: RentMar
       nearby_avg_deposit: summary.averageDeposit,
       nearby_avg_monthly_rent: summary.averageMonthlyRent,
       input_deposit: inputDeposit,
+      complex_name: summary.complexName,
+      match_mode: summary.matchMode,
+      regional_sample_size: summary.regionalSampleSize,
+      rent_sample_size: summary.sampleSize,
+      latest_rent_deposit: summary.latestTransaction?.deposit ?? null,
+      latest_rent_monthly_rent: summary.latestTransaction?.monthlyRent ?? null,
+      latest_rent_deal_month: summary.latestTransaction?.dealMonth ?? null,
       difference_rate: differenceRate,
       sample_size: summary.sampleSize
     },
     evidence: [
       {
-        title: "실거래가 전월세 표본 조회",
-        description: `${summary.endpointName}에서 ${summary.lawdCode} 지역의 최근 전월세 표본 ${summary.sampleSize}건을 조회했습니다.${sampleDescriptions ? ` 주요 표본: ${sampleDescriptions}` : ""}`,
+        title: summary.matchMode === "complex" ? "입력 단지 전월세 실거래가 조회" : "지역 전월세 실거래가 참고 조회",
+        description: `${summary.endpointName}에서 ${matchLabel} 최근 전월세 표본 ${summary.sampleSize}건을 사용했습니다. 지역 전체 후보는 ${summary.regionalSampleSize}건입니다.${sampleDescriptions ? ` 주요 표본: ${sampleDescriptions}` : ""}`,
         source: summary.source
       },
       ...report.evidence
@@ -483,14 +578,17 @@ export function applyRentMarketSummary(report: AnalyzeResponse, summary: RentMar
     sections: {
       ...report.sections,
       confirmed_facts: [
-        `실거래가 전월세 표본 ${summary.sampleSize}건 조회`,
-        `실거래가 평균 보증금: ${summary.averageDeposit ? summary.averageDeposit.toLocaleString("ko-KR") : "-"}원`,
+        `${summary.matchMode === "complex" ? "입력 단지" : "지역 참고"} 전월세 실거래가 표본 ${summary.sampleSize}건 조회`,
+        `최근 전월세 보증금: ${summary.latestTransaction ? summary.latestTransaction.deposit.toLocaleString("ko-KR") : "-"}원`,
+        `전월세 평균 보증금: ${summary.averageDeposit ? summary.averageDeposit.toLocaleString("ko-KR") : "-"}원`,
         ...report.sections.confirmed_facts.filter(
           (item) => item !== "주변 mock 전세 표본은 4건입니다." && item !== "주변 대체 전세 표본은 4건입니다."
         )
       ],
       assumptions: [
-        "실거래 표본은 법정동 앞 5자리 지역코드와 최근 계약월 기준으로 조회했습니다.",
+        summary.matchMode === "complex"
+          ? "실거래 표본은 입력 주소의 단지명과 API 단지명을 매칭해 우선 사용했습니다."
+          : "입력 단지명과 직접 매칭되는 실거래 표본이 없어 법정동 지역 표본을 참고값으로 사용했습니다.",
         ...report.sections.assumptions.filter(
           (item) => !item.includes("mock 거래 표본") && !item.includes("대체 거래 표본")
         )
@@ -523,6 +621,10 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
     .slice(0, 3)
     .map((item) => `${item.dealMonth} ${item.label} 매매가 ${Math.round(item.salePrice / 10000).toLocaleString("ko-KR")}만원`)
     .join(", ");
+  const matchLabel =
+    summary.matchMode === "complex" && summary.complexName
+      ? `입력 단지명 "${summary.complexName}"과 매칭된`
+      : `입력 단지명 매칭이 없어 ${summary.lawdCode} 지역 기준으로 조회한`;
   const highRiskSignal =
     jeonseRatio !== null && jeonseRatio >= 80
       ? [
@@ -549,13 +651,20 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
       ...report.market_comparison,
       nearby_avg_sale_price: summary.averageSalePrice,
       input_sale_price: payload.sale_price ?? summary.averageSalePrice,
-      input_deposit: inputDeposit
+      input_deposit: inputDeposit,
+      complex_name: report.market_comparison.complex_name ?? summary.complexName,
+      match_mode: report.market_comparison.match_mode === "complex" || summary.matchMode === "complex" ? "complex" : summary.matchMode,
+      regional_sample_size: Math.max(report.market_comparison.regional_sample_size ?? 0, summary.regionalSampleSize),
+      sale_sample_size: summary.sampleSize,
+      latest_sale_price: summary.latestTransaction?.salePrice ?? null,
+      latest_sale_deal_month: summary.latestTransaction?.dealMonth ?? null,
+      jeonse_ratio: jeonseRatio
     },
     risk_signals: [...highRiskSignal, ...(report.risk_signals ?? [])],
     evidence: [
       {
-        title: "실거래가 매매 표본 조회",
-        description: `${summary.endpointName}에서 ${summary.lawdCode} 지역의 최근 매매 표본 ${summary.sampleSize}건을 조회했습니다.${sampleDescriptions ? ` 주요 표본: ${sampleDescriptions}` : ""}`,
+        title: summary.matchMode === "complex" ? "입력 단지 매매 실거래가 조회" : "지역 매매 실거래가 참고 조회",
+        description: `${summary.endpointName}에서 ${matchLabel} 최근 매매 표본 ${summary.sampleSize}건을 사용했습니다. 지역 전체 후보는 ${summary.regionalSampleSize}건입니다.${sampleDescriptions ? ` 주요 표본: ${sampleDescriptions}` : ""}`,
         source: summary.source
       },
       ...report.evidence
@@ -563,13 +672,16 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
     sections: {
       ...report.sections,
       confirmed_facts: [
-        `실거래가 매매 표본 ${summary.sampleSize}건 조회`,
-        `실거래가 평균 매매가: ${summary.averageSalePrice ? summary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`,
+        `${summary.matchMode === "complex" ? "입력 단지" : "지역 참고"} 매매 실거래가 표본 ${summary.sampleSize}건 조회`,
+        `최근 매매 실거래가: ${summary.latestTransaction ? summary.latestTransaction.salePrice.toLocaleString("ko-KR") : "-"}원`,
+        `매매 평균 실거래가: ${summary.averageSalePrice ? summary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`,
         ...(jeonseRatio !== null ? [`실거래 매매가 기준 전세가율: ${jeonseRatio}%`] : []),
         ...report.sections.confirmed_facts
       ],
       assumptions: [
-        "전세가율은 입력 보증금과 최근 매매 실거래 표본 평균을 기준으로 계산했습니다.",
+        summary.matchMode === "complex"
+          ? "전세가율은 입력 보증금과 입력 단지 매매 실거래 표본 평균을 기준으로 계산했습니다."
+          : "전세가율은 입력 보증금과 지역 매매 실거래 참고 표본 평균을 기준으로 계산했습니다.",
         ...report.sections.assumptions
       ]
     }

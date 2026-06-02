@@ -29,6 +29,19 @@ function money(value?: number | null) {
   return `${formatter.format(value)}원`;
 }
 
+function dealMonth(value?: string | null) {
+  if (!value || value.length !== 6) return "-";
+  return `${value.slice(0, 4)}.${value.slice(4, 6)}`;
+}
+
+function marketScopeLabel(report: AnalyzeResponse) {
+  if (report.market_comparison.match_mode === "complex") {
+    return report.market_comparison.complex_name ? `${report.market_comparison.complex_name} 단지 기준` : "입력 단지 기준";
+  }
+  if (report.market_comparison.match_mode === "regional") return "단지 매칭 없음 · 지역 참고";
+  return "대체 표본";
+}
+
 function sourceLabel(source: string) {
   if (source.startsWith("rag_docs")) return "RAG 문서";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
@@ -121,12 +134,16 @@ function makeReportHtml(report: AnalyzeResponse) {
       <div class="score">${report.risk_score}</div>
       <p>${escapeHtml(report.summary)}</p>
     </section>
-    <h2>시세 적정성</h2>
+    <h2>입력 단지 실거래가</h2>
     <dl class="grid">
+      <div><dt>조회 기준</dt><dd>${escapeHtml(marketScopeLabel(report))}</dd></div>
       <div><dt>입력 보증금</dt><dd>${money(report.market_comparison.input_deposit)}</dd></div>
-      <div><dt>주변 평균 보증금</dt><dd>${money(report.market_comparison.nearby_avg_deposit)}</dd></div>
-      <div><dt>차이율</dt><dd>${report.market_comparison.difference_rate}%</dd></div>
-      <div><dt>표본 수</dt><dd>${report.market_comparison.sample_size}건</dd></div>
+      <div><dt>최근 전월세 보증금</dt><dd>${money(report.market_comparison.latest_rent_deposit)}</dd></div>
+      <div><dt>최근 매매 실거래가</dt><dd>${money(report.market_comparison.latest_sale_price)}</dd></div>
+      <div><dt>전월세 평균 보증금</dt><dd>${money(report.market_comparison.nearby_avg_deposit)}</dd></div>
+      <div><dt>매매 평균 실거래가</dt><dd>${money(report.market_comparison.nearby_avg_sale_price)}</dd></div>
+      <div><dt>전세가율</dt><dd>${report.market_comparison.jeonse_ratio ?? "-"}%</dd></div>
+      <div><dt>표본 수</dt><dd>전월세 ${report.market_comparison.rent_sample_size ?? report.market_comparison.sample_size}건 · 매매 ${report.market_comparison.sale_sample_size ?? 0}건</dd></div>
     </dl>
     <h2>데이터 조회 상태</h2>
     <ul>${dataStatusItems}</ul>
@@ -223,12 +240,12 @@ function DataStatusStrip({ report, framed = true }: { report: AnalyzeResponse; f
         {statuses.map((item) => {
           const Icon = icons[item.status];
           return (
-            <div key={item.id} className={`rounded-md border px-3 py-3 ${tone[item.status]}`}>
+            <div key={item.id} className={`min-w-0 rounded-md border px-3 py-3 ${tone[item.status]}`}>
               <div className="mb-1 flex items-center gap-2">
-                <Icon aria-hidden="true" size={15} />
-                <strong className="text-xs">{item.label}</strong>
+                <Icon aria-hidden="true" size={15} className="shrink-0" />
+                <strong className="min-w-0 text-xs">{item.label}</strong>
               </div>
-              <p className="text-xs leading-5 text-ink/65">{item.detail}</p>
+              <p className="break-words text-xs leading-5 text-ink/65">{item.detail}</p>
             </div>
           );
         })}
@@ -262,16 +279,17 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
     {
       name: "Market Data Agent",
       status: "완료",
-      purpose: "입력된 계약 금액과 실거래가 또는 대체 표본을 비교해 시세 적정성의 1차 근거를 만들었습니다.",
-      tasks: ["입력 보증금 확인", "전월세 실거래가 조회 또는 대체 표본 적용", "매매 실거래가 조회와 전세가율 가능성 확인", "표본 수와 차이율 산출"],
+      purpose: "입력된 단지의 전월세·매매 실거래가를 우선 조회하고, 없을 때만 지역 참고 표본으로 시세 근거를 만들었습니다.",
+      tasks: ["입력 보증금 확인", "주소에서 단지명 후보 추출", "단지명 매칭 실거래가 우선 조회", "최근 전세·매매 가격과 전세가율 산출"],
       observations: [
         `전월세 실거래가: ${statusText(rentStatus)}`,
         `매매 실거래가: ${statusText(saleStatus)}`,
         `입력 보증금은 ${inputDeposit}입니다.`,
-        `주변 평균 보증금은 ${nearbyDeposit}입니다.`,
+        `실거래 기준은 ${marketScopeLabel(report)}입니다.`,
+        `전월세 평균 보증금은 ${nearbyDeposit}입니다.`,
         `차이율은 ${report.market_comparison.difference_rate}%이고 표본 수는 ${report.market_comparison.sample_size}건입니다.`
       ],
-      delivered: ["market_comparison", "sample_size", "difference_rate", "시세 신뢰도 메모"]
+      delivered: ["latest_rent_deposit", "latest_sale_price", "jeonse_ratio", "market_comparison"]
     },
     {
       name: "RAG Evidence Agent",
@@ -438,7 +456,8 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
       ["위험도", report.risk_level],
       ["위험 점수", `${report.risk_score}/100`],
       ["입력 보증금", money(report.market_comparison.input_deposit)],
-      ["주변 평균 보증금", money(report.market_comparison.nearby_avg_deposit)],
+      ["전월세 평균 보증금", money(report.market_comparison.nearby_avg_deposit)],
+      ["매매 평균 실거래가", money(report.market_comparison.nearby_avg_sale_price)],
       ["차이율", `${report.market_comparison.difference_rate}%`]
     ],
     [report]
@@ -446,7 +465,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
   const generatedAt = todayLabel();
   const modeLabel = dataMode(report.data_statuses);
   const confidenceItems = [
-    ["시세 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.sample_size >= 5 ? "보통" : "낮음"],
+    ["실거래 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.match_mode === "complex" ? "단지 매칭" : "지역 참고"],
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
     ["권리관계", "미확인", "추가 필요"]
   ];
@@ -661,31 +680,39 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
 
       <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <section className="dashboard-panel p-5">
-          <SectionTitle number="02" title="시세 적정성" description={`표본 ${report.market_comparison.sample_size}건`} />
+          <SectionTitle number="02" title="입력 단지 실거래가" description={marketScopeLabel(report)} />
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
             <Scale aria-hidden="true" size={20} className="text-moss" />
-            <h2 className="text-lg font-bold">주변 시세 비교</h2>
+            <h2 className="text-lg font-bold">전세·매매 실거래 확인</h2>
             </div>
             <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">
               표본 {report.market_comparison.sample_size}건
             </span>
           </div>
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div className="metric-tile p-3">
-              <dt className="text-ink/60">입력 보증금</dt>
-              <dd className="mt-1 font-semibold">{money(report.market_comparison.input_deposit)}</dd>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div className="metric-tile border-moss/25 bg-moss/10 p-4">
+              <dt className="text-ink/60">최근 전월세 보증금</dt>
+              <dd className="mt-1 text-lg font-black text-ink">{money(report.market_comparison.latest_rent_deposit)}</dd>
+              <dd className="mt-1 text-xs font-bold text-ink/45">{dealMonth(report.market_comparison.latest_rent_deal_month)} · 월세 {money(report.market_comparison.latest_rent_monthly_rent)}</dd>
+            </div>
+            <div className="metric-tile border-brass/25 bg-brass/10 p-4">
+              <dt className="text-ink/60">최근 매매 실거래가</dt>
+              <dd className="mt-1 text-lg font-black text-ink">{money(report.market_comparison.latest_sale_price)}</dd>
+              <dd className="mt-1 text-xs font-bold text-ink/45">{dealMonth(report.market_comparison.latest_sale_deal_month)} · 전세가율 {report.market_comparison.jeonse_ratio ?? "-"}%</dd>
             </div>
             <div className="metric-tile p-3">
-              <dt className="text-ink/60">주변 평균 보증금</dt>
+              <dt className="text-ink/60">전월세 평균 보증금</dt>
               <dd className="mt-1 font-semibold">{money(report.market_comparison.nearby_avg_deposit)}</dd>
+              <dd className="mt-1 text-xs text-ink/45">전월세 {report.market_comparison.rent_sample_size ?? report.market_comparison.sample_size}건</dd>
             </div>
             <div className="metric-tile p-3">
-              <dt className="text-ink/60">입력 매매가</dt>
-              <dd className="mt-1 font-semibold">{money(report.market_comparison.input_sale_price)}</dd>
+              <dt className="text-ink/60">매매 평균 실거래가</dt>
+              <dd className="mt-1 font-semibold">{money(report.market_comparison.nearby_avg_sale_price)}</dd>
+              <dd className="mt-1 text-xs text-ink/45">매매 {report.market_comparison.sale_sample_size ?? 0}건</dd>
             </div>
-            <div className="metric-tile p-3">
-              <dt className="text-ink/60">차이율</dt>
+            <div className="metric-tile p-3 sm:col-span-2">
+              <dt className="text-ink/60">입력 보증금 대비 평균 보증금 차이율</dt>
               <dd className="mt-1 flex items-center gap-1 font-semibold tabular-nums">
                 <TrendingUp aria-hidden="true" size={15} className="text-brass" />
                 {report.market_comparison.difference_rate}%
