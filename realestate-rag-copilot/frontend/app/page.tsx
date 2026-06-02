@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   MapPinned,
   Moon,
+  Search,
   ShieldCheck,
   Sparkles,
   Sun,
@@ -54,6 +55,19 @@ const agentSteps: AgentStep[] = [
       "사용자 질문에서 계약 전 확인 의도와 리스크 키워드를 추출합니다.",
       "RAG 체크리스트에서 등기부등본, 선순위 권리, 보증보험 근거를 검색합니다.",
       "실제 데이터로 확정된 항목과 아직 확인되지 않은 항목을 분리합니다."
+    ]
+  },
+  {
+    name: "Search Context Agent",
+    shortName: "외부 검색",
+    role: "네이버 검색 API로 대상 주소와 단지 주변의 공개 웹·뉴스 맥락을 수집합니다.",
+    preview: "웹 검색 tool · 뉴스 검색 tool · 외부 참고 근거 후보",
+    Icon: Search,
+    logs: [
+      "입력 주소, 주택 유형, 계약 유형으로 네이버 검색 쿼리를 구성합니다.",
+      "웹 검색 tool로 단지·주소 관련 공개 문서 후보를 수집합니다.",
+      "뉴스 검색 tool로 최신 이슈와 지역 부동산 맥락 후보를 확인합니다.",
+      "검색 결과는 공식 실거래가가 아닌 보조 근거로 분리해 전달합니다."
     ]
   },
   {

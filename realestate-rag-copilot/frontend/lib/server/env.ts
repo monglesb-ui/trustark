@@ -28,6 +28,14 @@ export const serverEnv = {
     process.env.NCP_MAP_CLIENT_SECRET ??
     process.env.NCP_MAPS_CLIENT_SECRET,
 
+  naverSearchClientId:
+    process.env.NAVER_SEARCH_CLIENT_ID ??
+    process.env.NAVER_CLIENT_ID ??
+    process.env.NEXT_PUBLIC_NAVER_SEARCH_CLIENT_ID,
+  naverSearchClientSecret:
+    process.env.NAVER_SEARCH_CLIENT_SECRET ??
+    process.env.NAVER_CLIENT_SECRET,
+
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
 };
 

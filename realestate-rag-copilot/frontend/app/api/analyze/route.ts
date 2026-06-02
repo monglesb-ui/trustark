@@ -7,6 +7,7 @@ import { runMarketDataAgent } from "@/lib/server/agent-runtime/agents/market-dat
 import { runRagEvidenceAgent } from "@/lib/server/agent-runtime/agents/rag-evidence-agent";
 import { runRiskScoringAgent } from "@/lib/server/agent-runtime/agents/risk-scoring-agent";
 import { runLocationContextAgent } from "@/lib/server/agent-runtime/agents/location-context-agent";
+import { runSearchContextAgent } from "@/lib/server/agent-runtime/agents/search-context-agent";
 import { runReportAgent } from "@/lib/server/agent-runtime/agents/report-agent";
 import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-runtime/agents/validation-agent";
 import { serverEnv } from "@/lib/server/env";
@@ -315,7 +316,8 @@ export async function POST(request: Request) {
           detail: legalDong ? marketFailureDetail(saleLookup?.diagnostics) : "법정동코드 없음 · 전세가율 미확정"
         });
 
-    const scoredReport = runRiskScoringAgent({ report: marketReport, payload, trace });
+    const searchContextReport = await runSearchContextAgent({ report: marketReport, payload, trace });
+    const scoredReport = runRiskScoringAgent({ report: searchContextReport, payload, trace });
     const composedReport = runReportAgent({ report: scoredReport, trace });
     const finalReport = runValidationAgent({ report: composedReport, trace });
 

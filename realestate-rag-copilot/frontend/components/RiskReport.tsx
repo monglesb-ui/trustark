@@ -44,6 +44,7 @@ function marketScopeLabel(report: AnalyzeResponse) {
 
 function sourceLabel(source: string) {
   if (source.startsWith("rag_docs")) return "RAG 문서";
+  if (source.startsWith("naver-search")) return "네이버 검색";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
   if (source.includes("mock")) return "대체 표본";
   return source;
@@ -288,6 +289,7 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
   const legalDongStatus = statusById(report, "legal-dong");
   const rentStatus = statusById(report, "rent-market");
   const saleStatus = statusById(report, "sale-market");
+  const searchStatus = statusById(report, "search-context");
 
   return [
     {
@@ -318,6 +320,19 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       ],
       delivered: ["RAG 근거 문서", "미확인 항목 후보", "다음 확인 액션 후보"],
       traces: tracesForAgent(report, "RAG Evidence Agent")
+    },
+    {
+      name: "Search Context Agent",
+      status: "완료",
+      purpose: "네이버 검색 API로 대상 주소와 단지 주변의 공개 웹·뉴스 맥락을 수집해 공식 실거래가와 분리된 참고 근거로 붙였습니다.",
+      tasks: ["주소·주택유형 기반 웹 검색 실행", "부동산 관련 뉴스 검색 실행", "검색 스니펫을 외부 참고 근거로 변환", "공식 API가 아닌 보조 맥락임을 표시"],
+      observations: [
+        `외부 검색 맥락: ${statusText(searchStatus)}`,
+        `검색 tool trace는 ${tracesForAgent(report, "Search Context Agent").length}건입니다.`,
+        "네이버 검색 결과는 실거래가를 대체하지 않고 최신 이슈·외부 문서 후보를 찾는 데 사용됩니다."
+      ],
+      delivered: ["external_search_context", "source_candidates", "freshness caveat"],
+      traces: tracesForAgent(report, "Search Context Agent")
     },
     {
       name: "Location Context Agent",

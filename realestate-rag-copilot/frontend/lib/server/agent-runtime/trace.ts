@@ -3,6 +3,7 @@ import type { AgentTrace, AnalyzeResponse } from "@/lib/types";
 export type TraceAgent =
   | "Market Data Agent"
   | "RAG Evidence Agent"
+  | "Search Context Agent"
   | "Location Context Agent"
   | "Risk Scoring Agent"
   | "Report Agent"
