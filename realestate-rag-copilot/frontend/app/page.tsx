@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   Bot,
@@ -9,8 +9,10 @@ import {
   FileSearch,
   LoaderCircle,
   MapPinned,
+  Moon,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  Sun
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnalysisForm } from "@/components/AnalysisForm";
@@ -84,6 +86,13 @@ function wait(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function getInitialDarkMode() {
+  if (typeof window === "undefined") return false;
+  const savedTheme = window.localStorage.getItem("trust-ark-theme");
+  if (savedTheme) return savedTheme === "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function AnalyzingPanel({ activeStep }: { activeStep: number }) {
@@ -214,6 +223,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AnalysisStage>("idle");
   const [activeStep, setActiveStep] = useState(0);
+  const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+
+  useEffect(() => {
+    window.localStorage.setItem("trust-ark-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   async function handleAnalyze(payload: AnalyzeRequest) {
     setLoading(true);
@@ -242,11 +256,24 @@ export default function Home() {
   return (
     <>
       <a href="#main" className="skip-link">본문으로 이동</a>
+      <div className={`theme-shell ${darkMode ? "dark" : ""}`}>
       <main id="main" className="mx-auto grid min-h-screen w-full max-w-[1440px] gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[21rem_1fr] lg:px-8">
         <header className="lg:sticky lg:top-5 lg:h-[calc(100vh-2.5rem)]">
           <div className="dashboard-panel flex h-full flex-col p-5">
             <div className="border-b border-ink/10 pb-5">
-              <p className="text-xs font-black uppercase text-moss">Trust Ark</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase text-moss">Trust Ark</p>
+                <button
+                  type="button"
+                  onClick={() => setDarkMode((value) => !value)}
+                  aria-pressed={darkMode}
+                  aria-label={darkMode ? "라이트 모드로 전환" : "다크 모드로 전환"}
+                  title={darkMode ? "라이트 모드" : "다크 모드"}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-ink/10 bg-paper text-ink shadow-sm transition hover:border-moss/35 hover:bg-mint/45"
+                >
+                  {darkMode ? <Sun aria-hidden="true" size={18} /> : <Moon aria-hidden="true" size={18} />}
+                </button>
+              </div>
               <h1 className="mt-3 whitespace-nowrap font-serif text-[2.35rem] font-black leading-tight text-ink">
                 트러스트 아크
               </h1>
@@ -319,6 +346,7 @@ export default function Home() {
           </div>
         </div>
       </main>
+      </div>
     </>
   );
 }

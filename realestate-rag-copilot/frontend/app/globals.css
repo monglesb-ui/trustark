@@ -6,6 +6,13 @@
   color-scheme: light;
   --font-sans: "Pretendard Variable", "Noto Sans KR", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Source Serif 4", "Noto Serif KR", Georgia, serif;
+  --color-ink: 31 37 35;
+  --color-paper: 247 244 236;
+  --color-surface: 255 255 255;
+  --color-moss: 47 111 97;
+  --color-brass: 184 137 47;
+  --color-clay: 184 88 59;
+  --color-mint: 219 233 223;
 }
 
 * {
@@ -19,13 +26,36 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    linear-gradient(90deg, rgba(21, 83, 75, 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(21, 83, 75, 0.035) 1px, transparent 1px),
-    #f5f2ea;
-  background-size: 36px 36px;
-  color: #1f2523;
+  background: #f5f2ea;
+  color: rgb(var(--color-ink));
   font-family: var(--font-sans);
+}
+
+.theme-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(var(--color-moss), 0.055) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(var(--color-moss), 0.055) 1px, transparent 1px),
+    rgb(var(--color-paper));
+  background-size: 36px 36px;
+  color: rgb(var(--color-ink));
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.theme-shell.dark {
+  color-scheme: dark;
+  --color-ink: 232 236 229;
+  --color-paper: 18 22 21;
+  --color-surface: 28 34 32;
+  --color-moss: 113 181 158;
+  --color-brass: 220 171 77;
+  --color-clay: 221 118 90;
+  --color-mint: 41 58 52;
+  background:
+    linear-gradient(90deg, rgba(113, 181, 158, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(113, 181, 158, 0.08) 1px, transparent 1px),
+    radial-gradient(circle at top right, rgba(113, 181, 158, 0.16), transparent 28rem),
+    rgb(var(--color-paper));
 }
 
 ::selection {
@@ -50,17 +80,17 @@ textarea {
 }
 
 .dashboard-panel {
-  border: 1px solid rgba(31, 37, 35, 0.12);
+  border: 1px solid rgba(var(--color-ink), 0.12);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 38px rgba(31, 37, 35, 0.08);
+  background: rgba(var(--color-surface), 0.92);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(10px);
 }
 
 .metric-tile {
-  border: 1px solid rgba(31, 37, 35, 0.1);
+  border: 1px solid rgba(var(--color-ink), 0.1);
   border-radius: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, #faf8f1 100%);
+  background: linear-gradient(180deg, rgba(var(--color-surface), 1) 0%, rgba(var(--color-paper), 0.9) 100%);
 }
 
 .dashboard-panel,
@@ -70,7 +100,24 @@ textarea {
 
 .dashboard-panel:hover,
 .metric-tile:hover {
-  border-color: rgba(47, 111, 97, 0.24);
+  border-color: rgba(var(--color-moss), 0.34);
+}
+
+.theme-shell.dark .bg-white {
+  background-color: rgb(var(--color-surface));
+}
+
+.theme-shell.dark .bg-white\/80 {
+  background-color: rgba(var(--color-surface), 0.8);
+}
+
+.theme-shell.dark .border-white\/70 {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.theme-shell.dark .shadow-sm,
+.theme-shell.dark .shadow-panel {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 
 :focus-visible {

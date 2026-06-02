@@ -1,16 +1,18 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        ink: "#1f2523",
-        paper: "#f7f4ec",
-        moss: "#2f6f61",
-        brass: "#b8892f",
-        clay: "#b8583b",
-        mint: "#dbe9df"
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
+        paper: "rgb(var(--color-paper) / <alpha-value>)",
+        moss: "rgb(var(--color-moss) / <alpha-value>)",
+        brass: "rgb(var(--color-brass) / <alpha-value>)",
+        clay: "rgb(var(--color-clay) / <alpha-value>)",
+        mint: "rgb(var(--color-mint) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)"
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui"],
