@@ -2,6 +2,7 @@
 
 import { MapPinned } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { publicEnv } from "@/lib/public-env";
 import type { Location, MapMarker } from "@/lib/types";
 
 declare global {
@@ -23,7 +24,7 @@ type Props = {
 
 export function MapView({ location, markers }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const clientId = process.env.NEXT_PUBLIC_NAVER_MAPS_CLIENT_ID;
+  const clientId = publicEnv.naverMapClientId;
 
   useEffect(() => {
     if (!clientId) return;
