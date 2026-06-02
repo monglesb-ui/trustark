@@ -76,9 +76,22 @@ export type DataSourceStatus = {
   detail: string;
 };
 
+export type AgentTrace = {
+  id: string;
+  agent: string;
+  tool: string;
+  status: "success" | "fallback" | "missing" | "failed";
+  inputSummary: string;
+  outputSummary: string;
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
+  agent_traces?: AgentTrace[];
   risk_level: string;
   risk_score: number;
   summary: string;

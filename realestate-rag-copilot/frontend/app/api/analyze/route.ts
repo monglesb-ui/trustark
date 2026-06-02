@@ -2,16 +2,21 @@ import { NextResponse } from "next/server";
 import { buildMockAnalysis } from "@/lib/mock-analysis";
 import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types";
 import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus, MapMarker } from "@/lib/types";
+import { createTraceRecorder, withTraces } from "@/lib/server/agent-runtime/trace";
+import { runMarketDataAgent } from "@/lib/server/agent-runtime/agents/market-data-agent";
+import { runRagEvidenceAgent } from "@/lib/server/agent-runtime/agents/rag-evidence-agent";
+import { runRiskScoringAgent } from "@/lib/server/agent-runtime/agents/risk-scoring-agent";
+import { runLocationContextAgent } from "@/lib/server/agent-runtime/agents/location-context-agent";
+import { runReportAgent } from "@/lib/server/agent-runtime/agents/report-agent";
+import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-runtime/agents/validation-agent";
 import { serverEnv } from "@/lib/server/env";
-import { extractLegalDongQuery, lookupLegalDongCode } from "@/lib/server/legal-dong";
+import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
   applyRentMarketSummary,
   applySaleMarketSummary,
-  lookupRentMarketSummary,
-  lookupSaleMarketSummary,
   type MarketLookupDiagnostics
 } from "@/lib/server/real-transactions";
-import { geocodeAddress, type GeocodeResult } from "@/lib/server/vworld";
+import type { GeocodeResult } from "@/lib/server/vworld";
 
 function updateTargetMarker(markers: MapMarker[], lat: number, lng: number, amount?: number | null) {
   const nextMarkers = markers.map((marker) =>
@@ -138,7 +143,7 @@ function applyGeocoding(report: AnalyzeResponse, geocode: GeocodeResult, payload
 
 function applyLegalDongCode(
   report: AnalyzeResponse,
-  legalDong: Awaited<ReturnType<typeof lookupLegalDongCode>>,
+  legalDong: LegalDongCode | null,
   query: string
 ) {
   if (!legalDong) {
@@ -248,78 +253,8 @@ function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeReque
   } satisfies AnalyzeResponse;
 }
 
-function levelFor(score: number) {
-  if (score >= 75) return "위험 · HIGH";
-  if (score >= 60) return "검토 필요";
-  return "현재 표본 기준 낮음";
-}
-
 function unique(items: string[]) {
   return [...new Set(items)];
-}
-
-function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeRequest) {
-  const group = getPropertyTypeGroup(payload.property_type);
-  const sampleSize = report.market_comparison.sample_size;
-  const hasSalePrice = Boolean(report.market_comparison.nearby_avg_sale_price || report.market_comparison.input_sale_price);
-  const unverifiedText = report.sections.unverified_items.join(" ");
-  const hasRightsGap = /등기|권리|선순위|보증보험/.test(unverifiedText);
-  const sparseMarket = sampleSize < 5;
-  const jeonseRatio = report.market_comparison.jeonse_ratio;
-  const nonApartment = group !== "apartment";
-  const reasons: string[] = [];
-  let floor = 0;
-
-  if (nonApartment && sparseMarket) {
-    floor = Math.max(floor, 60);
-    reasons.push("비아파트 유형은 표본이 적으면 시세 신뢰도가 낮아 최소 검토 필요로 봅니다.");
-  }
-
-  if (!hasSalePrice && payload.contract_type === "jeonse") {
-    floor = Math.max(floor, 60);
-    reasons.push("매매 실거래가 또는 입력 매매가가 없어 전세가율을 확정하지 못했습니다.");
-  }
-
-  if (hasRightsGap) {
-    floor = Math.max(floor, 60);
-    reasons.push("등기부등본, 선순위 권리, 보증보험 항목이 아직 확인되지 않았습니다.");
-  }
-
-  if (group === "multifamily" && payload.contract_type === "jeonse") {
-    floor = Math.max(floor, 68);
-    reasons.push("다가구주택 전세는 선순위 임차인과 총 보증금 확인 전까지 보수적으로 판단합니다.");
-  }
-
-  if (reasons.length === 0 || report.risk_score >= floor) return report;
-
-  const adjustedScore = Math.max(report.risk_score, floor);
-
-  return {
-    ...report,
-    risk_score: adjustedScore,
-    risk_level: levelFor(adjustedScore),
-    summary:
-      adjustedScore >= 60
-        ? jeonseRatio !== null && jeonseRatio !== undefined
-          ? `실거래 매매 표본 기준 전세가율은 ${jeonseRatio}%입니다. 가격 기준 위험은 ${jeonseRatio >= 70 ? "추가 검토가 필요" : "높지 않"}지만, 등기부등본·선순위 권리·보증보험 가능 여부는 아직 확인 전입니다.`
-          : "현재 표본만으로 안전하다고 단정하기 어렵습니다. 실제 매매가, 등기부등본, 선순위 권리, 보증보험 가능 여부를 추가 확인해 주세요."
-        : report.summary,
-    risk_signals: [
-      {
-        severity: "확인 필요",
-        title: "데이터 불확실성에 따른 보수적 위험 보정",
-        metric: `표본 ${sampleSize}건 · 매매가 ${hasSalePrice ? "확인" : "미확인"}`,
-        description: reasons.join(" "),
-        source: "risk_rule:conservative_data_quality_floor"
-      },
-      ...(report.risk_signals ?? [])
-    ],
-    sections: {
-      ...report.sections,
-      assumptions: unique(["표본 부족과 미확인 권리관계는 위험 점수 하한선에 반영했습니다.", ...report.sections.assumptions]),
-      unverified_items: unique([...reasons, ...report.sections.unverified_items])
-    }
-  } satisfies AnalyzeResponse;
 }
 
 export async function POST(request: Request) {
@@ -331,16 +266,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
+  const trace = createTraceRecorder();
+
   try {
     const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
-    const geocode = await geocodeAddress(payload.address);
-    const geocodedReport = applyGeocoding(mockReport, geocode, payload);
+    const ragResult = runRagEvidenceAgent({ report: mockReport, payload, trace });
+    const geocode = await runLocationContextAgent({ payload, trace });
+    const geocodedReport = applyGeocoding(ragResult.report, geocode, payload);
     const legalDongQuery = geocode.result?.legalDong ?? extractLegalDongQuery(payload.address);
-    const legalDong = await lookupLegalDongCode(legalDongQuery);
+    const marketData = await runMarketDataAgent({ payload, legalDongQuery, trace });
+    const legalDong = marketData.legalDong;
     const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);
-    const rentLookup = legalDong
-      ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type, payload.address)
-      : null;
+    const rentLookup = marketData.rentLookup;
     const rentSummary = rentLookup?.summary ?? null;
     const rentReport = rentSummary
       ? withStatus(applyRentMarketSummary(codedReport, rentSummary, payload), {
@@ -358,7 +295,7 @@ export async function POST(request: Request) {
         status: legalDong ? "missing" : "fallback",
           detail: legalDong ? marketFailureDetail(rentLookup?.diagnostics) : "법정동코드 없음 · 대체 표본 유지"
         });
-    const saleLookup = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type, payload.address) : null;
+    const saleLookup = marketData.saleLookup;
     const saleSummary = saleLookup?.summary ?? null;
 
     const marketReport = saleSummary
@@ -378,16 +315,21 @@ export async function POST(request: Request) {
           detail: legalDong ? marketFailureDetail(saleLookup?.diagnostics) : "법정동코드 없음 · 전세가율 미확정"
         });
 
-    return NextResponse.json(applyConservativeRiskFloor(marketReport, payload));
+    const scoredReport = runRiskScoringAgent({ report: marketReport, payload, trace });
+    const composedReport = runReportAgent({ report: scoredReport, trace });
+    const finalReport = runValidationAgent({ report: composedReport, trace });
+
+    return NextResponse.json(withTraces(finalReport, trace.traces));
   } catch (error) {
     const fallbackReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
     const message = error instanceof Error ? error.message : "분석 처리 중 서버 오류가 발생했습니다.";
+    recordRuntimeFallback({ trace, inputSummary: payload.address, outputSummary: message.slice(0, 160) });
 
     if (!serverEnv.useMockFallback) {
       return NextResponse.json({ message }, { status: 502 });
     }
 
-    return NextResponse.json(applyConservativeRiskFloor(withStatus({
+    return NextResponse.json(withTraces(runRiskScoringAgent({ report: withStatus({
       ...fallbackReport,
       warnings: [`분석 API 일부 단계에서 오류가 발생해 대체 분석으로 전환했습니다: ${message}`, ...fallbackReport.warnings]
     }, {
@@ -395,6 +337,6 @@ export async function POST(request: Request) {
       label: "분석 API 런타임",
       status: "failed",
       detail: message.slice(0, 120)
-    }), payload));
+    }), payload, trace }), trace.traces));
   }
 }

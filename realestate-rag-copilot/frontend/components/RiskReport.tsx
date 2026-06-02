@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getPropertyTypeLabel } from "@/lib/property-types";
-import type { AnalyzeResponse, DataSourceStatus } from "@/lib/types";
+import type { AgentTrace, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
 import { MapView } from "./MapView";
 
@@ -265,7 +265,21 @@ type AgentReport = {
   tasks: string[];
   observations: string[];
   delivered: string[];
+  traces: AgentTrace[];
 };
+
+function tracesForAgent(report: AnalyzeResponse, agentName: string) {
+  return (report.agent_traces ?? []).filter((trace) => trace.agent === agentName);
+}
+
+function traceStatusLabel(status: AgentTrace["status"]) {
+  return {
+    success: "success",
+    fallback: "fallback",
+    missing: "missing",
+    failed: "failed"
+  }[status];
+}
 
 function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): AgentReport[] {
   const inputDeposit = money(report.market_comparison.input_deposit);
@@ -289,7 +303,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
         `전월세 평균 보증금은 ${nearbyDeposit}입니다.`,
         `차이율은 ${report.market_comparison.difference_rate}%이고 표본 수는 ${report.market_comparison.sample_size}건입니다.`
       ],
-      delivered: ["latest_rent_deposit", "latest_sale_price", "jeonse_ratio", "market_comparison"]
+      delivered: ["latest_rent_deposit", "latest_sale_price", "jeonse_ratio", "market_comparison"],
+      traces: tracesForAgent(report, "Market Data Agent")
     },
     {
       name: "RAG Evidence Agent",
@@ -301,7 +316,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
         "실제 등기부등본 원문은 제공되지 않아 미확인 항목으로 유지했습니다.",
         "보증보험 가입 가능 여부도 현재 데이터에서는 확정하지 않았습니다."
       ],
-      delivered: ["RAG 근거 문서", "미확인 항목 후보", "다음 확인 액션 후보"]
+      delivered: ["RAG 근거 문서", "미확인 항목 후보", "다음 확인 액션 후보"],
+      traces: tracesForAgent(report, "RAG Evidence Agent")
     },
     {
       name: "Location Context Agent",
@@ -317,7 +333,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
           ? "대상 좌표는 지도 지오코딩 결과를 사용했습니다."
           : "대상 좌표는 대체 좌표를 사용했으므로 정확한 위치로 단정하지 않습니다."
       ],
-      delivered: ["target marker", "nearby markers", "location caveat"]
+      delivered: ["target marker", "nearby markers", "location caveat"],
+      traces: tracesForAgent(report, "Location Context Agent")
     },
     {
       name: "Risk Scoring Agent",
@@ -329,7 +346,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
         `위험도는 ${report.risk_level}입니다.`,
         `구조화된 위험 신호는 ${(report.risk_signals ?? []).length || 1}건입니다.`
       ],
-      delivered: ["risk_score", "risk_level", "risk_signals"]
+      delivered: ["risk_score", "risk_level", "risk_signals"],
+      traces: tracesForAgent(report, "Risk Scoring Agent")
     },
     {
       name: "Report Agent",
@@ -337,7 +355,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       purpose: "각 Agent의 결과를 사용자에게 읽기 쉬운 종합 리포트와 문서형 리포트 구조로 조립했습니다.",
       tasks: ["종합 위험도 요약 생성", "시세 비교·RAG 근거·다음 액션 섹션 구성", "문서형 다운로드용 HTML 리포트 구성"],
       observations: ["대시보드형 리포트가 생성되었습니다.", "문서형 리포트 전환이 가능합니다.", "문서 다운로드용 HTML을 생성할 수 있습니다."],
-      delivered: ["summary", "sections", "next_actions", "downloadable document"]
+      delivered: ["summary", "sections", "next_actions", "downloadable document"],
+      traces: tracesForAgent(report, "Report Agent")
     },
     {
       name: "Validation Agent",
@@ -349,7 +368,8 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
         `주의 문구 ${report.warnings.length}건을 유지했습니다.`,
         `미확인 항목 ${report.sections.unverified_items.length}건을 별도 표시했습니다.`
       ],
-      delivered: ["warnings", "validated report", "safety caveats"]
+      delivered: ["warnings", "validated report", "safety caveats"],
+      traces: tracesForAgent(report, "Validation Agent")
     }
   ];
 }
@@ -369,7 +389,7 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
           </p>
         </div>
         <span className="rounded-md border border-moss/20 bg-moss/10 px-3 py-2 text-xs font-black text-moss">
-          {reports.length} agents completed
+          {reports.reduce((sum, report) => sum + report.traces.length, 0)} real tool traces
         </span>
       </div>
 
@@ -388,7 +408,9 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
                 <strong className="block text-sm text-ink">{item.name}</strong>
                 <span className="mt-1 block text-xs text-ink/55">{item.purpose}</span>
               </span>
-              <span className="shrink-0 rounded-md bg-moss px-2 py-1 text-[0.68rem] font-black text-white">{item.status}</span>
+              <span className="shrink-0 rounded-md bg-moss px-2 py-1 text-[0.68rem] font-black text-white">
+                {item.traces.length > 0 ? `${item.traces.length} calls` : item.status}
+              </span>
             </button>
           ))}
         </div>
@@ -421,6 +443,34 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
                 {selected.delivered.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
+          </div>
+
+          <div className="mt-5 rounded-md border border-ink/10 bg-paper/55 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="font-bold text-ink">실제 Tool Call Trace</h4>
+              <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{selected.traces.length} calls</span>
+            </div>
+            {selected.traces.length > 0 ? (
+              <div className="grid gap-2">
+                {selected.traces.map((trace) => (
+                  <article key={trace.id} className="rounded-md border border-ink/10 bg-white p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-moss/10 px-2 py-1 text-[0.68rem] font-black text-moss">{trace.tool}</span>
+                      <span className="rounded-md bg-ink/5 px-2 py-1 text-[0.68rem] font-black text-ink/55">
+                        {traceStatusLabel(trace.status)}
+                      </span>
+                      <span className="text-[0.68rem] font-bold text-ink/40">{trace.durationMs}ms</span>
+                    </div>
+                    <p className="text-xs leading-5 text-ink/55">input: {trace.inputSummary}</p>
+                    <p className="mt-1 text-sm leading-6 text-ink/75">output: {trace.outputSummary}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-ink/60">
+                이 Agent는 아직 실제 tool trace 대신 리포트 결과를 기반으로 설명됩니다. 다음 고도화 단계에서 독립 tool 호출로 분리할 수 있습니다.
+              </p>
+            )}
           </div>
         </article>
       </div>
