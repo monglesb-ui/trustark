@@ -289,14 +289,14 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       name: "Location Context Agent",
       status: "완료",
       purpose: "대상 주소와 주변 거래 표본의 위치 맥락을 구성해 비교 표본이 어디에 놓이는지 보여줬습니다.",
-      tasks: ["주소 정규화", "VWorld 지오코딩 상태 확인", "법정동코드 조회 상태 확인", "대상 marker와 주변 marker 구성"],
+      tasks: ["주소 정규화", "네이버/VWorld 지오코딩 상태 확인", "법정동코드 조회 상태 확인", "대상 marker와 주변 marker 구성"],
       observations: [
-        `VWorld 지오코딩: ${statusText(geocodingStatus)}`,
+        `지도 지오코딩: ${statusText(geocodingStatus)}`,
         `법정동코드: ${statusText(legalDongStatus)}`,
         `대상 좌표는 ${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}입니다.`,
         `지도 marker는 총 ${report.markers.length}개입니다.`,
         geocodingStatus?.status === "success"
-          ? "대상 좌표는 VWorld 지오코딩 결과를 사용했습니다."
+          ? "대상 좌표는 지도 지오코딩 결과를 사용했습니다."
           : "대상 좌표는 대체 좌표를 사용했으므로 정확한 위치로 단정하지 않습니다."
       ],
       delivered: ["target marker", "nearby markers", "location caveat"]

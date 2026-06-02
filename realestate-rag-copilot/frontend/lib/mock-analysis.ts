@@ -16,7 +16,7 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
   return {
     request_property_type: payload.property_type,
     data_statuses: [
-      { id: "geocoding", label: "VWorld 지오코딩", status: "fallback", detail: "대체 좌표 사용" },
+      { id: "geocoding", label: "지도 지오코딩", status: "fallback", detail: "대체 좌표 사용" },
       { id: "legal-dong", label: "법정동코드", status: "missing", detail: "법정동코드 미조회" },
       { id: "rent-market", label: "전월세 실거래가", status: "fallback", detail: "대체 전월세 표본 4건" },
       { id: "sale-market", label: "매매 실거래가", status: "missing", detail: "매매 표본 없음" }

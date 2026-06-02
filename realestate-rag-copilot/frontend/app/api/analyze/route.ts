@@ -52,19 +52,21 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
   if (!geocoded) {
     return withStatus(report, {
       id: "geocoding",
-      label: "VWorld 지오코딩",
+      label: "지도 지오코딩",
       status: "fallback",
-      detail: "좌표 변환 실패 또는 키 없음 · 대체 좌표 사용"
+      detail: "네이버/VWorld 좌표 변환 실패 또는 키 없음 · 대체 좌표 사용"
     });
   }
+
+  const provider = geocoded.source.startsWith("naver") ? "네이버" : "VWorld";
 
   return {
     ...report,
     data_statuses: upsertStatus(report.data_statuses, {
       id: "geocoding",
-      label: "VWorld 지오코딩",
+      label: "지도 지오코딩",
       status: "success",
-      detail: `${geocoded.addressType === "parcel" ? "지번" : "도로명"} 좌표 변환 성공`
+      detail: `${provider} ${geocoded.addressType === "parcel" ? "지번" : "도로명"} 좌표 변환 성공`
     }),
     location: {
       lat: geocoded.lat,
@@ -75,7 +77,7 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
     evidence: [
       {
         title: "실제 주소 좌표 변환",
-        description: `VWorld ${geocoded.addressType === "parcel" ? "지번" : "도로명"} 주소 API로 대상 주소를 좌표로 변환했습니다.`,
+        description: `${provider} ${geocoded.addressType === "parcel" ? "지번" : "도로명"} 주소 API로 대상 주소를 좌표로 변환했습니다.`,
         source: geocoded.source
       },
       ...report.evidence
@@ -83,7 +85,7 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
     sections: {
       ...report.sections,
       confirmed_facts: [
-        `VWorld 지오코딩 결과: ${geocoded.address} (${geocoded.lat.toFixed(6)}, ${geocoded.lng.toFixed(6)})`,
+        `${provider} 지오코딩 결과: ${geocoded.address} (${geocoded.lat.toFixed(6)}, ${geocoded.lng.toFixed(6)})`,
         ...(geocoded.legalDong ? [`법정동 후보: ${geocoded.legalDong}`] : []),
         ...report.sections.confirmed_facts
       ],
@@ -333,10 +335,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(applyConservativeRiskFloor(withStatus({
       ...mockReport,
-      warnings: ["VWorld 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
+      warnings: ["네이버/VWorld 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
     }, {
       id: "geocoding",
-      label: "VWorld 지오코딩",
+      label: "지도 지오코딩",
       status: "failed",
       detail: "예외 발생 · 대체 좌표 사용"
     }), payload));

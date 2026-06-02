@@ -17,6 +17,11 @@ export const serverEnv = {
 
   vworldApiKey: process.env.VWORLD_API_KEY,
 
+  naverMapClientId:
+    process.env.NAVER_MAP_CLIENT_ID ??
+    process.env.NAVER_MAPS_CLIENT_ID ??
+    process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ??
+    process.env.NEXT_PUBLIC_NAVER_MAPS_CLIENT_ID,
   naverMapClientSecret: process.env.NAVER_MAP_CLIENT_SECRET,
 
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
