@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { buildMockAnalysis } from "@/lib/mock-analysis";
 import type { AnalyzeRequest, AnalyzeResponse, MapMarker } from "@/lib/types";
 import { serverEnv } from "@/lib/server/env";
+import { extractLegalDongQuery, lookupLegalDongCode } from "@/lib/server/legal-dong";
 import { geocodeAddress } from "@/lib/server/vworld";
 
 function updateTargetMarker(markers: MapMarker[], lat: number, lng: number, amount?: number | null) {
@@ -57,6 +58,42 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
   } satisfies AnalyzeResponse;
 }
 
+function applyLegalDongCode(
+  report: AnalyzeResponse,
+  legalDong: Awaited<ReturnType<typeof lookupLegalDongCode>>,
+  query: string
+) {
+  if (!legalDong) {
+    return {
+      ...report,
+      sections: {
+        ...report.sections,
+        unverified_items: [`법정동코드 조회 결과 없음: ${query}`, ...report.sections.unverified_items]
+      }
+    } satisfies AnalyzeResponse;
+  }
+
+  return {
+    ...report,
+    evidence: [
+      {
+        title: "법정동코드 정규화",
+        description: `${legalDong.addressName}의 법정동코드 ${legalDong.regionCode}를 확인했습니다. 실거래가 API 조회에는 앞 5자리 ${legalDong.lawdCode}를 사용합니다.`,
+        source: legalDong.source
+      },
+      ...report.evidence
+    ],
+    sections: {
+      ...report.sections,
+      confirmed_facts: [
+        `법정동코드: ${legalDong.regionCode}`,
+        `실거래가 조회용 지역코드(LAWD_CD): ${legalDong.lawdCode}`,
+        ...report.sections.confirmed_facts
+      ]
+    }
+  } satisfies AnalyzeResponse;
+}
+
 export async function POST(request: Request) {
   let payload: AnalyzeRequest;
 
@@ -68,13 +105,12 @@ export async function POST(request: Request) {
 
   const mockReport = buildMockAnalysis(payload);
 
-  if (!serverEnv.vworldApiKey) {
-    return NextResponse.json(mockReport);
-  }
-
   try {
     const geocoded = await geocodeAddress(payload.address);
-    return NextResponse.json(applyGeocoding(mockReport, geocoded, payload));
+    const geocodedReport = applyGeocoding(mockReport, geocoded, payload);
+    const legalDongQuery = geocoded?.legalDong ?? extractLegalDongQuery(payload.address);
+    const legalDong = await lookupLegalDongCode(legalDongQuery);
+    return NextResponse.json(applyLegalDongCode(geocodedReport, legalDong, legalDongQuery));
   } catch (error) {
     if (!serverEnv.useMockFallback) {
       const message = error instanceof Error ? error.message : "주소 지오코딩에 실패했습니다.";
