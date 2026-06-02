@@ -117,6 +117,13 @@ export function MapView({ location, markers }: Props) {
       return;
     }
 
+    if (window.naver?.maps && !window.naver.maps.Service) {
+      document.querySelectorAll<HTMLScriptElement>('script[src*="oapi.map.naver.com/openapi/v3/maps.js"]').forEach((script) => {
+        script.remove();
+      });
+      delete window.naver;
+    }
+
     const script = document.createElement("script");
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
     script.async = true;
