@@ -3,6 +3,7 @@ import { buildMockAnalysis } from "@/lib/mock-analysis";
 import type { AnalyzeRequest, AnalyzeResponse, MapMarker } from "@/lib/types";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, lookupLegalDongCode } from "@/lib/server/legal-dong";
+import { applyRentMarketSummary, lookupRentMarketSummary } from "@/lib/server/real-transactions";
 import { geocodeAddress } from "@/lib/server/vworld";
 
 function updateTargetMarker(markers: MapMarker[], lat: number, lng: number, amount?: number | null) {
@@ -110,7 +111,12 @@ export async function POST(request: Request) {
     const geocodedReport = applyGeocoding(mockReport, geocoded, payload);
     const legalDongQuery = geocoded?.legalDong ?? extractLegalDongQuery(payload.address);
     const legalDong = await lookupLegalDongCode(legalDongQuery);
-    return NextResponse.json(applyLegalDongCode(geocodedReport, legalDong, legalDongQuery));
+    const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);
+    const rentSummary = legalDong
+      ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type)
+      : null;
+
+    return NextResponse.json(rentSummary ? applyRentMarketSummary(codedReport, rentSummary, payload) : codedReport);
   } catch (error) {
     if (!serverEnv.useMockFallback) {
       const message = error instanceof Error ? error.message : "주소 지오코딩에 실패했습니다.";
