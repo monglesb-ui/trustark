@@ -74,11 +74,13 @@ function collectRows(value: unknown): LegalDongRow[] {
 function scoreRow(row: LegalDongRow, query: string) {
   const name = row.locatadd_nm ?? "";
   const regionCode = row.region_cd ?? "";
+  const bjdongCode = regionCode.slice(5, 10);
   let score = 0;
 
   if (name === query) score += 100;
   if (name.includes(query) || query.includes(name)) score += 40;
   if (regionCode.length === 10) score += 10;
+  if (bjdongCode !== "00000") score += 50;
   if (!regionCode.endsWith("00000000")) score += 8;
   if (!regionCode.endsWith("00000")) score += 5;
   if (!regionCode.endsWith("00")) score += 2;
@@ -87,9 +89,11 @@ function scoreRow(row: LegalDongRow, query: string) {
 }
 
 function pickBestRow(rows: LegalDongRow[], query: string) {
-  return rows
-    .filter((row) => row.region_cd && row.locatadd_nm)
-    .sort((a, b) => scoreRow(b, query) - scoreRow(a, query))[0];
+  const usableRows = rows.filter((row) => row.region_cd && row.locatadd_nm);
+  const dongLevelRows = usableRows.filter((row) => row.region_cd?.slice(5, 10) !== "00000");
+  const rowsToScore = dongLevelRows.length > 0 ? dongLevelRows : usableRows;
+
+  return rowsToScore.sort((a, b) => scoreRow(b, query) - scoreRow(a, query))[0];
 }
 
 export async function lookupLegalDongCode(query: string): Promise<LegalDongCode | null> {
@@ -101,7 +105,7 @@ export async function lookupLegalDongCode(query: string): Promise<LegalDongCode 
   const url = new URL(LEGAL_DONG_ENDPOINT);
   url.searchParams.set("ServiceKey", serviceKey);
   url.searchParams.set("pageNo", "1");
-  url.searchParams.set("numOfRows", "10");
+  url.searchParams.set("numOfRows", "50");
   url.searchParams.set("type", "json");
   url.searchParams.set("locatadd_nm", normalizedQuery);
 

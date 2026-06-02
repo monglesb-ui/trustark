@@ -159,21 +159,26 @@ export async function lookupBuildingRegister({
     attempts: []
   };
 
-  if (serviceKeys.length === 0 || !sigunguCd || !bjdongCd || !lot) {
+  if (serviceKeys.length === 0 || !sigunguCd || !bjdongCd || bjdongCd === "00000" || !lot) {
     diagnostics.attempts.push({
       ok: false,
-      error: !lot ? "missing parcel lot number" : "missing service key or legal dong code"
+      error: !lot
+        ? "missing parcel lot number"
+        : !bjdongCd || bjdongCd === "00000"
+          ? "missing dong-level legal code"
+          : "missing service key or legal dong code"
     });
     return { summary: null, diagnostics };
   }
 
+  const dongCode = bjdongCd;
   let lastItems: BuildingRegisterItem[] = [];
 
   for (const serviceKey of serviceKeys) {
     const url = new URL(BUILDING_REGISTER_TITLE_ENDPOINT);
     url.searchParams.set("serviceKey", serviceKey.key);
     url.searchParams.set("sigunguCd", sigunguCd);
-    url.searchParams.set("bjdongCd", bjdongCd);
+    url.searchParams.set("bjdongCd", dongCode);
     url.searchParams.set("platGbCd", lot.platGbCd);
     url.searchParams.set("bun", lot.bun);
     url.searchParams.set("ji", lot.ji);

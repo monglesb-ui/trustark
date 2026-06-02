@@ -30,6 +30,7 @@ function upsertStatus(statuses: DataSourceStatus[] | undefined, status: DataSour
 function diagnosticSummary(diagnostics: BuildingRegisterDiagnostics) {
   if (!diagnostics.hasServiceKey) return "건축HUB 서비스키 없음";
   if (!diagnostics.sigunguCd || !diagnostics.bjdongCd) return "법정동코드 미확보";
+  if (diagnostics.bjdongCd === "00000") return `${diagnostics.sigunguCd}-00000 · 동 단위 법정동코드 미확보`;
   if (!diagnostics.bun) return "지번 본번 미확보";
 
   const last = diagnostics.attempts.at(-1);
