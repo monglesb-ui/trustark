@@ -10,7 +10,7 @@ import {
   lookupRentMarketSummary,
   lookupSaleMarketSummary
 } from "@/lib/server/real-transactions";
-import { geocodeAddress } from "@/lib/server/vworld";
+import { geocodeAddress, type GeocodeResult } from "@/lib/server/vworld";
 
 function updateTargetMarker(markers: MapMarker[], lat: number, lng: number, amount?: number | null) {
   const nextMarkers = markers.map((marker) =>
@@ -48,13 +48,33 @@ function withStatus(report: AnalyzeResponse, status: DataSourceStatus) {
   } satisfies AnalyzeResponse;
 }
 
-function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<typeof geocodeAddress>>, payload: AnalyzeRequest) {
+function geocodeFailureDetail(geocode: GeocodeResult) {
+  const diagnostics = geocode.diagnostics;
+  if (!diagnostics) return "주소 정규화 결과 없음 · 대체 좌표 사용";
+  if (!diagnostics.hasClientId || !diagnostics.hasClientSecret) {
+    return `네이버 서버 키 미설정 · id=${diagnostics.hasClientId ? "있음" : "없음"} secret=${diagnostics.hasClientSecret ? "있음" : "없음"}`;
+  }
+
+  const last = diagnostics.attempts.at(-1);
+  if (!last) return `네이버 후보 ${diagnostics.candidates.length}개 생성 · 호출 없음`;
+
+  const status = [last.httpStatus ? `HTTP ${last.httpStatus}` : null, last.apiStatus ? `API ${last.apiStatus}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const count = last.addressCount !== undefined ? `결과 ${last.addressCount}건` : "결과 없음";
+  const error = last.error ? ` · ${last.error.slice(0, 80)}` : "";
+
+  return `${status || "네이버 호출 실패"} · ${count} · 후보 ${diagnostics.candidates.length}개${error}`;
+}
+
+function applyGeocoding(report: AnalyzeResponse, geocode: GeocodeResult, payload: AnalyzeRequest) {
+  const geocoded = geocode.result;
   if (!geocoded) {
     return withStatus(report, {
       id: "geocoding",
       label: "지도 지오코딩",
       status: "fallback",
-      detail: "네이버 좌표 변환 실패 또는 서버 키 없음 · 대체 좌표 사용"
+      detail: geocodeFailureDetail(geocode)
     });
   }
 
@@ -289,9 +309,9 @@ export async function POST(request: Request) {
     const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
 
   try {
-    const geocoded = await geocodeAddress(payload.address);
-    const geocodedReport = applyGeocoding(mockReport, geocoded, payload);
-    const legalDongQuery = geocoded?.legalDong ?? extractLegalDongQuery(payload.address);
+    const geocode = await geocodeAddress(payload.address);
+    const geocodedReport = applyGeocoding(mockReport, geocode, payload);
+    const legalDongQuery = geocode.result?.legalDong ?? extractLegalDongQuery(payload.address);
     const legalDong = await lookupLegalDongCode(legalDongQuery);
     const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);
     const rentSummary = legalDong

@@ -1,6 +1,6 @@
 import { serverEnv } from "./env";
 import { normalizeKoreanAddress } from "./address-normalize";
-import { geocodeAddressWithNaver } from "./naver-geocode";
+import { geocodeAddressWithNaver, type NaverGeocodeDiagnostics } from "./naver-geocode";
 
 type VworldAddressType = "parcel" | "road";
 
@@ -35,6 +35,11 @@ export type GeocodedAddress = {
   source: string;
   addressType: VworldAddressType;
   legalDong?: string;
+};
+
+export type GeocodeResult = {
+  result: GeocodedAddress | null;
+  diagnostics: NaverGeocodeDiagnostics | null;
 };
 
 const VWORLD_ADDRESS_ENDPOINT = "https://api.vworld.kr/req/address";
@@ -104,12 +109,9 @@ async function fetchVworldAddress(address: string, type: VworldAddressType) {
   }
 }
 
-export async function geocodeAddress(address: string) {
+export async function geocodeAddress(address: string): Promise<GeocodeResult> {
   const trimmed = normalizeKoreanAddress(address);
-  if (!trimmed) return null;
+  if (!trimmed) return { result: null, diagnostics: null };
 
-  const naverResult = await geocodeAddressWithNaver(trimmed);
-  if (naverResult) return naverResult;
-
-  return null;
+  return geocodeAddressWithNaver(trimmed);
 }

@@ -18,7 +18,24 @@ type NaverGeocodeAddress = {
 
 type NaverGeocodeResponse = {
   status?: string;
+  errorMessage?: string;
+  errorCode?: string;
+  message?: string;
   addresses?: NaverGeocodeAddress[];
+};
+
+export type NaverGeocodeDiagnostics = {
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  candidates: string[];
+  attempts: Array<{
+    query: string;
+    ok: boolean;
+    httpStatus?: number;
+    apiStatus?: string;
+    addressCount?: number;
+    error?: string;
+  }>;
 };
 
 const NAVER_GEOCODE_ENDPOINT = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode";
@@ -53,7 +70,18 @@ function parseNaverAddress(data: NaverGeocodeResponse, originalAddress: string) 
 }
 
 async function fetchNaverGeocode(query: string) {
-  if (!serverEnv.naverMapClientId || !serverEnv.naverMapClientSecret) return null;
+  const clientId = serverEnv.naverMapClientId;
+  const clientSecret = serverEnv.naverMapClientSecret;
+  if (!clientId || !clientSecret) {
+    return {
+      result: null,
+      attempt: {
+        query,
+        ok: false,
+        error: "missing NAVER_MAP_CLIENT_ID or NAVER_MAP_CLIENT_SECRET"
+      }
+    };
+  }
 
   const url = new URL(NAVER_GEOCODE_ENDPOINT);
   url.searchParams.set("query", query);
@@ -64,29 +92,79 @@ async function fetchNaverGeocode(query: string) {
   try {
     const response = await fetch(url, {
       headers: {
-        "x-ncp-apigw-api-key-id": serverEnv.naverMapClientId,
-        "x-ncp-apigw-api-key": serverEnv.naverMapClientSecret
+        "x-ncp-apigw-api-key-id": clientId,
+        "x-ncp-apigw-api-key": clientSecret
       },
       signal: controller.signal,
       cache: "no-store"
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return {
+        result: null,
+        attempt: {
+          query,
+          ok: false,
+          httpStatus: response.status,
+          error: await response.text()
+        }
+      };
+    }
 
     const data = (await response.json()) as NaverGeocodeResponse;
-    return parseNaverAddress(data, query);
-  } catch {
-    return null;
+    const result = parseNaverAddress(data, query);
+
+    return {
+      result,
+      attempt: {
+        query,
+        ok: Boolean(result),
+        httpStatus: response.status,
+        apiStatus: data.status,
+        addressCount: data.addresses?.length ?? 0,
+        error: data.errorMessage ?? data.errorCode ?? data.message
+      }
+    };
+  } catch (error) {
+    return {
+      result: null,
+      attempt: {
+        query,
+        ok: false,
+        error: error instanceof Error ? error.message : "unknown fetch error"
+      }
+    };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export async function geocodeAddressWithNaver(address: string) {
-  for (const candidate of addressSearchCandidates(address)) {
-    const result = await fetchNaverGeocode(candidate);
-    if (result) return result;
+export async function geocodeAddressWithNaver(address: string): Promise<{
+  result: GeocodedAddress | null;
+  diagnostics: NaverGeocodeDiagnostics;
+}> {
+  const candidates = addressSearchCandidates(address);
+  const diagnostics: NaverGeocodeDiagnostics = {
+    hasClientId: Boolean(serverEnv.naverMapClientId),
+    hasClientSecret: Boolean(serverEnv.naverMapClientSecret),
+    candidates,
+    attempts: []
+  };
+
+  if (!serverEnv.naverMapClientId || !serverEnv.naverMapClientSecret) {
+    diagnostics.attempts.push({
+      query: candidates[0] ?? address,
+      ok: false,
+      error: "missing NAVER_MAP_CLIENT_ID or NAVER_MAP_CLIENT_SECRET"
+    });
+    return { result: null, diagnostics };
   }
 
-  return null;
+  for (const candidate of candidates) {
+    const { result, attempt } = await fetchNaverGeocode(candidate);
+    diagnostics.attempts.push(attempt);
+    if (result) return { result, diagnostics };
+  }
+
+  return { result: null, diagnostics };
 }
