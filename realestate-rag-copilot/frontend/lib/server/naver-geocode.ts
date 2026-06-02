@@ -38,7 +38,7 @@ export type NaverGeocodeDiagnostics = {
   }>;
 };
 
-const NAVER_GEOCODE_ENDPOINT = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode";
+const NAVER_GEOCODE_ENDPOINT = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode";
 
 function legalDongFromElements(elements: NaverAddressElement[] | undefined) {
   if (!elements) return undefined;
