@@ -1,4 +1,5 @@
 import { serverEnv } from "./env";
+import { normalizeKoreanAddress } from "./address-normalize";
 
 type VworldAddressType = "parcel" | "road";
 
@@ -103,7 +104,7 @@ async function fetchVworldAddress(address: string, type: VworldAddressType) {
 }
 
 export async function geocodeAddress(address: string) {
-  const trimmed = address.trim();
+  const trimmed = normalizeKoreanAddress(address);
   if (!trimmed || !serverEnv.vworldApiKey) return null;
 
   return (await fetchVworldAddress(trimmed, "parcel")) ?? (await fetchVworldAddress(trimmed, "road"));

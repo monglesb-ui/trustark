@@ -1,4 +1,5 @@
 import { serverEnv } from "./env";
+import { inferLegalDongFromRoadName, normalizeKoreanAddress } from "./address-normalize";
 
 type LegalDongRow = {
   region_cd?: string;
@@ -31,8 +32,10 @@ function normalizeSpaces(value: string) {
 }
 
 export function extractLegalDongQuery(address: string) {
-  const cleaned = normalizeSpaces(address)
-    .replace(/\([^)]*\)/g, "")
+  const roadLegalDong = inferLegalDongFromRoadName(address);
+  if (roadLegalDong) return roadLegalDong;
+
+  const cleaned = normalizeSpaces(normalizeKoreanAddress(address))
     .replace(/\d+-?\d*.*$/g, "")
     .trim();
   const tokens = cleaned.split(" ").filter(Boolean);
