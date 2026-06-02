@@ -275,7 +275,10 @@ export async function POST(request: Request) {
     const ragResult = runRagEvidenceAgent({ report: mockReport, payload, trace });
     const geocode = await runLocationContextAgent({ payload, trace });
     const geocodedReport = applyGeocoding(ragResult.report, geocode, payload);
-    const legalDongQuery = geocode.result?.legalDong ?? extractLegalDongQuery(payload.address);
+    const legalDongQuery =
+      typeof geocode.result?.legalDong === "string" && geocode.result.legalDong.trim()
+        ? geocode.result.legalDong
+        : extractLegalDongQuery(String(payload.address ?? ""));
     const marketData = await runMarketDataAgent({ payload, legalDongQuery, trace });
     const legalDong = marketData.legalDong;
     const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);

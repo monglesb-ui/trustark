@@ -79,6 +79,7 @@ function normalizeLot(value: number | string | undefined) {
 
 function parseLotNumber(addresses: string[]) {
   for (const address of addresses) {
+    if (typeof address !== "string") continue;
     const normalized = address.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
     const match = normalized.match(/(?:^|\s)(산\s*)?(\d{1,4})(?:-(\d{1,4}))?(?:\s|$|[^\d-])/);
     if (!match) continue;

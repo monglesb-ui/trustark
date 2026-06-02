@@ -70,18 +70,37 @@ export async function runBuildingRegisterAgent({
   assertAllowedTool(tool);
 
   const candidates = addressCandidates(payload, geocode);
-  const result = await trace.run(
-    BUILDING_REGISTER_AGENT,
-    tool,
-    `region=${legalDong?.regionCode ?? "unknown"} · address=${candidates[0] ?? payload.address}`,
-    () => lookupBuildingRegister({ legalDong, addressCandidates: candidates }),
-    (lookup) => ({
-      status: lookup.summary ? "success" : "missing",
-      outputSummary: lookup.summary
-        ? `${lookup.summary.mainPurpose ?? lookup.summary.etcPurpose ?? "용도 미확인"} · ${lookup.summary.useApprovalDate ?? "사용승인일 미확인"} · 표제부 ${lookup.summary.sampleSize}건`
-        : diagnosticSummary(lookup.diagnostics)
-    })
-  );
+  let result: Awaited<ReturnType<typeof lookupBuildingRegister>>;
+
+  try {
+    result = await trace.run(
+      BUILDING_REGISTER_AGENT,
+      tool,
+      `region=${legalDong?.regionCode ?? "unknown"} · address=${candidates[0] ?? payload.address}`,
+      () => lookupBuildingRegister({ legalDong, addressCandidates: candidates }),
+      (lookup) => ({
+        status: lookup.summary ? "success" : "missing",
+        outputSummary: lookup.summary
+          ? `${lookup.summary.mainPurpose ?? lookup.summary.etcPurpose ?? "용도 미확인"} · ${lookup.summary.useApprovalDate ?? "사용승인일 미확인"} · 표제부 ${lookup.summary.sampleSize}건`
+          : diagnosticSummary(lookup.diagnostics)
+      })
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "건축물대장 조회 중 오류";
+    return {
+      ...report,
+      data_statuses: upsertStatus(report.data_statuses, {
+        id: "building-register",
+        label: "건축물대장",
+        status: "failed",
+        detail: message.slice(0, 100)
+      }),
+      sections: {
+        ...report.sections,
+        unverified_items: [`건축물대장 조회 오류: ${message.slice(0, 100)}`, ...report.sections.unverified_items]
+      }
+    } satisfies AnalyzeResponse;
+  }
 
   if (!result.summary) {
     return {

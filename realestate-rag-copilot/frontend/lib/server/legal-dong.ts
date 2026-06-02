@@ -32,10 +32,11 @@ function normalizeSpaces(value: string) {
 }
 
 export function extractLegalDongQuery(address: string) {
-  const roadLegalDong = inferLegalDongFromRoadName(address);
+  const safeAddress = typeof address === "string" ? address : String(address ?? "");
+  const roadLegalDong = inferLegalDongFromRoadName(safeAddress);
   if (roadLegalDong) return roadLegalDong;
 
-  const cleaned = normalizeSpaces(normalizeKoreanAddress(address))
+  const cleaned = normalizeSpaces(normalizeKoreanAddress(safeAddress))
     .replace(/\d+-?\d*.*$/g, "")
     .trim();
   const tokens = cleaned.split(" ").filter(Boolean);
