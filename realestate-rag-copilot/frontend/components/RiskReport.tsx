@@ -9,6 +9,7 @@ import {
   Gauge,
   LayoutDashboard,
   ListChecks,
+  NotebookTabs,
   Scale,
   ShieldAlert,
   TrendingUp
@@ -162,8 +163,167 @@ function SeverityPill({ severity }: { severity: string }) {
   return <span className={`rounded-md px-2.5 py-1 text-xs font-black ${className}`}>{severity}</span>;
 }
 
+type AgentReport = {
+  name: string;
+  status: string;
+  purpose: string;
+  tasks: string[];
+  observations: string[];
+  delivered: string[];
+};
+
+function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): AgentReport[] {
+  const inputDeposit = money(report.market_comparison.input_deposit);
+  const nearbyDeposit = money(report.market_comparison.nearby_avg_deposit);
+
+  return [
+    {
+      name: "Market Data Agent",
+      status: "완료",
+      purpose: "입력된 계약 금액과 주변 mock 거래 표본을 비교해 시세 적정성의 1차 근거를 만들었습니다.",
+      tasks: ["입력 보증금 확인", "주변 mock 전세 표본 평균 계산", "표본 수와 차이율 산출"],
+      observations: [
+        `입력 보증금은 ${inputDeposit}입니다.`,
+        `주변 평균 보증금은 ${nearbyDeposit}입니다.`,
+        `차이율은 ${report.market_comparison.difference_rate}%이고 표본 수는 ${report.market_comparison.sample_size}건입니다.`
+      ],
+      delivered: ["market_comparison", "sample_size", "difference_rate", "시세 신뢰도 메모"]
+    },
+    {
+      name: "RAG Evidence Agent",
+      status: "완료",
+      purpose: "전세 계약 전 확인해야 할 체크리스트 근거를 검색해 리포트 문장의 출처를 보강했습니다.",
+      tasks: ["사용자 질문에서 전세 계약 전 확인 의도 추출", "전세 리스크 체크리스트 문서 검색", "등기부등본·보증보험·선순위 권리 관련 근거 선별"],
+      observations: [
+        `RAG 근거 ${ragEvidenceCount || report.evidence.length}건을 리포트에 연결했습니다.`,
+        "실제 등기부등본 원문은 제공되지 않아 미확인 항목으로 유지했습니다.",
+        "보증보험 가입 가능 여부도 현재 데이터에서는 확정하지 않았습니다."
+      ],
+      delivered: ["RAG 근거 문서", "미확인 항목 후보", "다음 확인 액션 후보"]
+    },
+    {
+      name: "Location Context Agent",
+      status: "완료",
+      purpose: "대상 주소와 주변 거래 표본의 위치 맥락을 구성해 비교 표본이 어디에 놓이는지 보여줬습니다.",
+      tasks: ["대상 주소를 mock 좌표로 매핑", "대상 marker와 주변 marker 구성", "지도 API 미연결 시 demo coordinate fallback 적용"],
+      observations: [
+        `대상 좌표는 ${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}입니다.`,
+        `지도 marker는 총 ${report.markers.length}개입니다.`,
+        "좌표는 데모용 mock 좌표이므로 정확한 지오코딩으로 단정하지 않았습니다."
+      ],
+      delivered: ["target marker", "nearby markers", "location caveat"]
+    },
+    {
+      name: "Risk Scoring Agent",
+      status: "완료",
+      purpose: "시세 차이, 표본 수, RAG 근거, 미확인 권리관계를 종합해 위험 점수와 위험 신호를 만들었습니다.",
+      tasks: ["보증금 차이율 규칙 적용", "표본 부족에 따른 불확실성 반영", "권리관계·보증보험 미확인 상태를 리스크 신호와 분리"],
+      observations: [
+        `위험 점수는 ${report.risk_score}점입니다.`,
+        `위험도는 ${report.risk_level}입니다.`,
+        `구조화된 위험 신호는 ${(report.risk_signals ?? []).length || 1}건입니다.`
+      ],
+      delivered: ["risk_score", "risk_level", "risk_signals"]
+    },
+    {
+      name: "Report Agent",
+      status: "완료",
+      purpose: "각 Agent의 결과를 사용자에게 읽기 쉬운 종합 리포트와 문서형 리포트 구조로 조립했습니다.",
+      tasks: ["종합 위험도 요약 생성", "시세 비교·RAG 근거·다음 액션 섹션 구성", "문서형 다운로드용 HTML 리포트 구성"],
+      observations: ["대시보드형 리포트가 생성되었습니다.", "문서형 리포트 전환이 가능합니다.", "문서 다운로드용 HTML을 생성할 수 있습니다."],
+      delivered: ["summary", "sections", "next_actions", "downloadable document"]
+    },
+    {
+      name: "Validation Agent",
+      status: "완료",
+      purpose: "최종 리포트가 계약 가능 여부를 단정하지 않도록 안전 문구와 미확인 항목을 검토했습니다.",
+      tasks: ["단정 표현 차단", "전문가 검토 필요 문구 확인", "확인된 사실·가정·미확인 항목 분리 확인"],
+      observations: [
+        "계약 가능/안전 같은 단정 표현을 사용하지 않았습니다.",
+        `주의 문구 ${report.warnings.length}건을 유지했습니다.`,
+        `미확인 항목 ${report.sections.unverified_items.length}건을 별도 표시했습니다.`
+      ],
+      delivered: ["warnings", "validated report", "safety caveats"]
+    }
+  ];
+}
+
+function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
+  const [openAgent, setOpenAgent] = useState(reports[0]?.name ?? "");
+  const selected = reports.find((item) => item.name === openAgent) ?? reports[0];
+
+  return (
+    <section className="dashboard-panel p-5 sm:p-6">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Trust Ark Agent Workpapers</p>
+          <h2 className="mt-2 text-2xl font-black text-ink">Agent 분석 기록</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
+            종합 리포트 뒤에서 각 Agent가 어떤 입력을 보고 어떤 결과물을 넘겼는지 확인할 수 있습니다.
+          </p>
+        </div>
+        <span className="rounded-md border border-moss/20 bg-moss/10 px-3 py-2 text-xs font-black text-moss">
+          {reports.length} agents completed
+        </span>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[20rem_1fr]">
+        <div className="grid content-start gap-2">
+          {reports.map((item) => (
+            <button
+              key={item.name}
+              type="button"
+              onClick={() => setOpenAgent(item.name)}
+              className={`flex min-h-[4.25rem] items-center justify-between gap-3 rounded-md border px-4 py-3 text-left transition ${
+                item.name === selected.name ? "border-moss/45 bg-moss/10 shadow-sm" : "border-ink/10 bg-white hover:bg-mint/30"
+              }`}
+            >
+              <span>
+                <strong className="block text-sm text-ink">{item.name}</strong>
+                <span className="mt-1 block text-xs text-ink/55">{item.purpose}</span>
+              </span>
+              <span className="shrink-0 rounded-md bg-moss px-2 py-1 text-[0.68rem] font-black text-white">{item.status}</span>
+            </button>
+          ))}
+        </div>
+
+        <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-4">
+            <div>
+              <h3 className="text-xl font-black text-ink">{selected.name} 보고서</h3>
+              <p className="mt-1 text-sm leading-6 text-ink/65">{selected.purpose}</p>
+            </div>
+            <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{selected.status}</span>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-md border border-ink/10 bg-paper/60 p-4">
+              <h4 className="font-bold text-ink">수행 작업</h4>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
+                {selected.tasks.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-md border border-ink/10 bg-paper/60 p-4">
+              <h4 className="font-bold text-ink">관찰 결과</h4>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
+                {selected.observations.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+            <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
+              <h4 className="font-bold text-ink">종합 보고서에 전달한 내용</h4>
+              <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
+                {selected.delivered.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 export function RiskReport({ report }: { report: AnalyzeResponse }) {
-  const [layout, setLayout] = useState<"dashboard" | "document">("dashboard");
+  const [layout, setLayout] = useState<"dashboard" | "document" | "agents">("dashboard");
   const tone =
     report.risk_score >= 81
       ? "border-clay/45 bg-clay/10 text-clay"
@@ -201,6 +361,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
     ["권리관계", "미확인", "추가 필요"]
   ];
+  const agentReports = useMemo(() => buildAgentReports(report, ragEvidence.length), [report, ragEvidence.length]);
 
   return (
     <div className="grid gap-5">
@@ -239,6 +400,16 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
               <FileText aria-hidden="true" size={15} />
               문서형
             </button>
+            <button
+              type="button"
+              onClick={() => setLayout("agents")}
+              className={`inline-flex min-h-9 items-center gap-1 rounded-md px-3 text-sm font-bold ${
+                layout === "agents" ? "bg-white text-ink shadow-sm" : "text-ink/55"
+              }`}
+            >
+              <NotebookTabs aria-hidden="true" size={15} />
+              Agent 기록
+            </button>
           </div>
           <button
             type="button"
@@ -251,7 +422,9 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
         </div>
       </section>
 
-      {layout === "document" ? (
+      {layout === "agents" ? (
+        <AgentReportPanel reports={agentReports} />
+      ) : layout === "document" ? (
         <article className="dashboard-panel mx-auto w-full max-w-4xl p-8 sm:p-10">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-moss">Trust Ark Report</p>
           <h1 className="mt-3 font-serif text-4xl font-black text-ink">전세 계약 사전 위험 검토 리포트</h1>

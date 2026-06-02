@@ -5,8 +5,9 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
 
-  await page.goto(baseUrl, { waitUntil: "commit", timeout: 30000 });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.getByRole("heading", { name: "트러스트 아크" }).waitFor({ timeout: 15000 });
+  await page.waitForTimeout(750);
   await page.getByRole("button", { name: "리스크 분석" }).click({ noWaitAfter: true });
 
   await page.getByText("리스크 분석 진행 중").waitFor({ timeout: 3000 });
@@ -22,8 +23,13 @@ async function main() {
   await page.getByRole("heading", { name: "RAG 근거 문서" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "다음 확인 액션" }).waitFor({ timeout: 15000 });
   await page.getByText("핵심 근거").waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Agent 기록" }).click();
+  await page.getByRole("heading", { name: "Agent 분석 기록" }).waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: /RAG Evidence Agent/ }).click();
+  await page.getByRole("heading", { name: "RAG Evidence Agent 보고서" }).waitFor({ timeout: 15000 });
+  await page.getByText("종합 보고서에 전달한 내용").waitFor({ timeout: 15000 });
 
-  await page.getByRole("button", { name: "문서형" }).click();
+  await page.getByRole("button", { name: "문서형", exact: true }).click();
   await page.getByRole("heading", { name: "전세 계약 사전 위험 검토 리포트" }).waitFor({ timeout: 15000 });
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "문서 다운로드" }).click();
