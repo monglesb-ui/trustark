@@ -7,6 +7,16 @@ import type { Location, MapMarker } from "@/lib/types";
 
 type NaverLatLng = unknown;
 type NaverMap = unknown;
+type NaverClientGeocodeResponse = {
+  result?: {
+    items?: Array<{
+      point?: { x?: string | number; y?: string | number };
+      address?: string;
+      isRoadAddress?: boolean;
+    }>;
+  };
+  v2?: { addresses?: Array<{ x?: string; y?: string; roadAddress?: string; jibunAddress?: string }> };
+};
 
 declare global {
   interface Window {
@@ -17,11 +27,8 @@ declare global {
         Marker: new (options: Record<string, unknown>) => unknown;
         Service?: {
           geocode: (
-            options: { query: string },
-            callback: (
-              status: string,
-              response: { v2?: { addresses?: Array<{ x?: string; y?: string; roadAddress?: string; jibunAddress?: string }> } }
-            ) => void
+            options: { address: string },
+            callback: (status: string, response: NaverClientGeocodeResponse) => void
           ) => void;
           Status?: {
             OK: string;
@@ -43,6 +50,17 @@ export function MapView({ location, markers }: Props) {
 
   useEffect(() => {
     if (!clientId) return;
+
+    function parseClientGeocode(response: NaverClientGeocodeResponse) {
+      const item = response.result?.items?.[0];
+      const v2Item = response.v2?.addresses?.[0];
+      const lng = Number(item?.point?.x ?? v2Item?.x);
+      const lat = Number(item?.point?.y ?? v2Item?.y);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+      return { lat, lng };
+    }
 
     function markerSetFor(centerLat: number, centerLng: number, useClientGeocode: boolean) {
       if (!useClientGeocode) return markers;
@@ -77,13 +95,11 @@ export function MapView({ location, markers }: Props) {
         return;
       }
 
-      geocoder.geocode({ query: location.address }, (status, response) => {
-        const first = response.v2?.addresses?.[0];
-        const lng = Number(first?.x);
-        const lat = Number(first?.y);
+      geocoder.geocode({ address: location.address }, (status, response) => {
+        const parsed = parseClientGeocode(response);
 
-        if (status === okStatus && Number.isFinite(lat) && Number.isFinite(lng)) {
-          drawMap(lat, lng, true);
+        if (status === okStatus && parsed) {
+          drawMap(parsed.lat, parsed.lng, true);
           return;
         }
 
@@ -91,7 +107,7 @@ export function MapView({ location, markers }: Props) {
       });
     }
 
-    if (window.naver?.maps) {
+    if (window.naver?.maps?.Service) {
       renderMap();
       return;
     }
