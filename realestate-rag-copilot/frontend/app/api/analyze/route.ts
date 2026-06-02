@@ -8,7 +8,8 @@ import {
   applyRentMarketSummary,
   applySaleMarketSummary,
   lookupRentMarketSummary,
-  lookupSaleMarketSummary
+  lookupSaleMarketSummary,
+  type MarketLookupDiagnostics
 } from "@/lib/server/real-transactions";
 import { geocodeAddress, type GeocodeResult } from "@/lib/server/vworld";
 
@@ -65,6 +66,26 @@ function geocodeFailureDetail(geocode: GeocodeResult) {
   const error = last.error ? ` · ${last.error.slice(0, 80)}` : "";
 
   return `${status || "네이버 호출 실패"} · ${count} · 후보 ${diagnostics.candidates.length}개${error}`;
+}
+
+function marketFailureDetail(diagnostics?: MarketLookupDiagnostics | null) {
+  if (!diagnostics) return "진단 정보 없음";
+  if (!diagnostics.hasServiceKey) return "data.go.kr 서비스키 없음";
+
+  const totalItems = diagnostics.attempts.reduce((sum, item) => sum + (item.itemCount ?? 0), 0);
+  const last = diagnostics.attempts.at(-1);
+  const months = diagnostics.dealMonths.slice(0, diagnostics.attempts.length || 1).join(",");
+
+  if (!last) {
+    return `${diagnostics.endpointName} · LAWD_CD ${diagnostics.lawdCode} · 호출 전`;
+  }
+
+  const status = [last.httpStatus ? `HTTP ${last.httpStatus}` : null, last.itemCount !== undefined ? `표본 ${totalItems}건` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const error = last.error ? ` · ${last.error.slice(0, 80)}` : "";
+
+  return `${diagnostics.endpointName} · LAWD_CD ${diagnostics.lawdCode} · ${months} · ${status || "호출 실패"}${error}`;
 }
 
 function applyGeocoding(report: AnalyzeResponse, geocode: GeocodeResult, payload: AnalyzeRequest) {
@@ -313,9 +334,10 @@ export async function POST(request: Request) {
     const legalDongQuery = geocode.result?.legalDong ?? extractLegalDongQuery(payload.address);
     const legalDong = await lookupLegalDongCode(legalDongQuery);
     const codedReport = applyLegalDongCode(geocodedReport, legalDong, legalDongQuery);
-    const rentSummary = legalDong
+    const rentLookup = legalDong
       ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type)
       : null;
+    const rentSummary = rentLookup?.summary ?? null;
     const rentReport = rentSummary
       ? withStatus(applyRentMarketSummary(codedReport, rentSummary, payload), {
           id: "rent-market",
@@ -324,12 +346,13 @@ export async function POST(request: Request) {
           detail: `표본 ${rentSummary.sampleSize}건 · 평균 보증금 ${rentSummary.averageDeposit ? rentSummary.averageDeposit.toLocaleString("ko-KR") : "-"}원`
         })
       : withStatus(codedReport, {
-          id: "rent-market",
-          label: "전월세 실거래가",
-          status: legalDong ? "missing" : "fallback",
-          detail: legalDong ? "조회 표본 없음 · 대체 표본 유지" : "법정동코드 없음 · 대체 표본 유지"
+        id: "rent-market",
+        label: "전월세 실거래가",
+        status: legalDong ? "missing" : "fallback",
+          detail: legalDong ? marketFailureDetail(rentLookup?.diagnostics) : "법정동코드 없음 · 대체 표본 유지"
         });
-    const saleSummary = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type) : null;
+    const saleLookup = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type) : null;
+    const saleSummary = saleLookup?.summary ?? null;
 
     const marketReport = saleSummary
       ? withStatus(applySaleMarketSummary(rentReport, saleSummary, payload), {
@@ -339,10 +362,10 @@ export async function POST(request: Request) {
           detail: `표본 ${saleSummary.sampleSize}건 · 평균 매매가 ${saleSummary.averageSalePrice ? saleSummary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`
         })
       : withStatus(rentReport, {
-          id: "sale-market",
-          label: "매매 실거래가",
-          status: legalDong ? "missing" : "fallback",
-          detail: legalDong ? "조회 표본 없음 · 전세가율 미확정" : "법정동코드 없음 · 전세가율 미확정"
+        id: "sale-market",
+        label: "매매 실거래가",
+        status: legalDong ? "missing" : "fallback",
+          detail: legalDong ? marketFailureDetail(saleLookup?.diagnostics) : "법정동코드 없음 · 전세가율 미확정"
         });
 
     return NextResponse.json(applyConservativeRiskFloor(marketReport, payload));

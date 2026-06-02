@@ -49,6 +49,27 @@ export type SaleMarketSummary = {
   sampleSize: number;
 };
 
+export type MarketApiAttempt = {
+  dealMonth: string;
+  ok: boolean;
+  httpStatus?: number;
+  itemCount?: number;
+  error?: string;
+};
+
+export type MarketLookupDiagnostics = {
+  endpointName: string;
+  lawdCode: string;
+  dealMonths: string[];
+  hasServiceKey: boolean;
+  attempts: MarketApiAttempt[];
+};
+
+export type MarketLookupResult<T> = {
+  summary: T | null;
+  diagnostics: MarketLookupDiagnostics;
+};
+
 const APT_RENT_ENDPOINT: RentEndpoint = {
   name: "국토교통부_아파트 전월세 실거래가",
   url: "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent"
@@ -184,7 +205,12 @@ function parseSaleTransactions(xml: string, dealMonth: string): SaleTransaction[
 
 async function fetchRentTransactions(endpoint: RentEndpoint, lawdCode: string, dealMonth: string) {
   const serviceKey = getServiceKey();
-  if (!serviceKey) return [];
+  if (!serviceKey) {
+    return {
+      items: [],
+      attempt: { dealMonth, ok: false, error: "missing DATA_GO_KR service key" }
+    };
+  }
 
   const url = new URL(endpoint.url);
   url.searchParams.set("serviceKey", serviceKey);
@@ -202,11 +228,23 @@ async function fetchRentTransactions(endpoint: RentEndpoint, lawdCode: string, d
       cache: "no-store"
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      return {
+        items: [],
+        attempt: { dealMonth, ok: false, httpStatus: response.status, error: await response.text() }
+      };
+    }
 
-    return parseTransactions(await response.text(), dealMonth);
-  } catch {
-    return [];
+    const items = parseTransactions(await response.text(), dealMonth);
+    return {
+      items,
+      attempt: { dealMonth, ok: items.length > 0, httpStatus: response.status, itemCount: items.length }
+    };
+  } catch (error) {
+    return {
+      items: [],
+      attempt: { dealMonth, ok: false, error: error instanceof Error ? error.message : "unknown rent fetch error" }
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -214,7 +252,12 @@ async function fetchRentTransactions(endpoint: RentEndpoint, lawdCode: string, d
 
 async function fetchSaleTransactions(endpoint: RentEndpoint, lawdCode: string, dealMonth: string) {
   const serviceKey = getServiceKey();
-  if (!serviceKey) return [];
+  if (!serviceKey) {
+    return {
+      items: [],
+      attempt: { dealMonth, ok: false, error: "missing DATA_GO_KR service key" }
+    };
+  }
 
   const url = new URL(endpoint.url);
   url.searchParams.set("serviceKey", serviceKey);
@@ -232,11 +275,23 @@ async function fetchSaleTransactions(endpoint: RentEndpoint, lawdCode: string, d
       cache: "no-store"
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      return {
+        items: [],
+        attempt: { dealMonth, ok: false, httpStatus: response.status, error: await response.text() }
+      };
+    }
 
-    return parseSaleTransactions(await response.text(), dealMonth);
-  } catch {
-    return [];
+    const items = parseSaleTransactions(await response.text(), dealMonth);
+    return {
+      items,
+      attempt: { dealMonth, ok: items.length > 0, httpStatus: response.status, itemCount: items.length }
+    };
+  } catch (error) {
+    return {
+      items: [],
+      attempt: { dealMonth, ok: false, error: error instanceof Error ? error.message : "unknown sale fetch error" }
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -266,60 +321,84 @@ export async function lookupRentMarketSummary(
   lawdCode: string,
   propertyType: string,
   contractType: AnalyzeRequest["contract_type"]
-): Promise<RentMarketSummary | null> {
+): Promise<MarketLookupResult<RentMarketSummary>> {
   const serviceKey = getServiceKey();
-  if (!serviceKey || !lawdCode) return null;
-
   const endpoint = endpointFor(propertyType);
   const dealMonths = recentDealMonths();
+  const diagnostics: MarketLookupDiagnostics = {
+    endpointName: endpoint.name,
+    lawdCode,
+    dealMonths,
+    hasServiceKey: Boolean(serviceKey),
+    attempts: []
+  };
+
+  if (!serviceKey || !lawdCode) return { summary: null, diagnostics };
+
   const collected: RentTransaction[] = [];
 
   for (const dealMonth of dealMonths) {
-    const transactions = await fetchRentTransactions(endpoint, lawdCode, dealMonth);
-    collected.push(...transactions);
+    const result = await fetchRentTransactions(endpoint, lawdCode, dealMonth);
+    diagnostics.attempts.push(result.attempt);
+    collected.push(...result.items);
     if (collected.length >= 8) break;
   }
 
   const filtered = filterByContractType(collected, contractType).slice(0, 12);
-  if (filtered.length === 0) return null;
+  if (filtered.length === 0) return { summary: null, diagnostics };
 
   return {
-    source: endpoint.url,
-    endpointName: endpoint.name,
-    lawdCode,
-    dealMonths,
-    transactions: filtered,
-    averageDeposit: average(filtered.map((item) => item.deposit)),
-    averageMonthlyRent: average(filtered.map((item) => item.monthlyRent)),
-    sampleSize: filtered.length
+    summary: {
+      source: endpoint.url,
+      endpointName: endpoint.name,
+      lawdCode,
+      dealMonths,
+      transactions: filtered,
+      averageDeposit: average(filtered.map((item) => item.deposit)),
+      averageMonthlyRent: average(filtered.map((item) => item.monthlyRent)),
+      sampleSize: filtered.length
+    },
+    diagnostics
   };
 }
 
-export async function lookupSaleMarketSummary(lawdCode: string, propertyType: string): Promise<SaleMarketSummary | null> {
+export async function lookupSaleMarketSummary(lawdCode: string, propertyType: string): Promise<MarketLookupResult<SaleMarketSummary>> {
   const serviceKey = getServiceKey();
-  if (!serviceKey || !lawdCode) return null;
-
   const endpoint = tradeEndpointFor(propertyType);
   const dealMonths = recentDealMonths(12);
+  const diagnostics: MarketLookupDiagnostics = {
+    endpointName: endpoint.name,
+    lawdCode,
+    dealMonths,
+    hasServiceKey: Boolean(serviceKey),
+    attempts: []
+  };
+
+  if (!serviceKey || !lawdCode) return { summary: null, diagnostics };
+
   const collected: SaleTransaction[] = [];
 
   for (const dealMonth of dealMonths) {
-    const transactions = await fetchSaleTransactions(endpoint, lawdCode, dealMonth);
-    collected.push(...transactions);
+    const result = await fetchSaleTransactions(endpoint, lawdCode, dealMonth);
+    diagnostics.attempts.push(result.attempt);
+    collected.push(...result.items);
     if (collected.length >= 8) break;
   }
 
   const transactions = collected.slice(0, 12);
-  if (transactions.length === 0) return null;
+  if (transactions.length === 0) return { summary: null, diagnostics };
 
   return {
-    source: endpoint.url,
-    endpointName: endpoint.name,
-    lawdCode,
-    dealMonths,
-    transactions,
-    averageSalePrice: average(transactions.map((item) => item.salePrice)),
-    sampleSize: transactions.length
+    summary: {
+      source: endpoint.url,
+      endpointName: endpoint.name,
+      lawdCode,
+      dealMonths,
+      transactions,
+      averageSalePrice: average(transactions.map((item) => item.salePrice)),
+      sampleSize: transactions.length
+    },
+    diagnostics
   };
 }
 
