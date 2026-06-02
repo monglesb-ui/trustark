@@ -54,7 +54,7 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
       id: "geocoding",
       label: "지도 지오코딩",
       status: "fallback",
-      detail: "네이버/VWorld 좌표 변환 실패 또는 키 없음 · 대체 좌표 사용"
+      detail: "네이버 좌표 변환 실패 또는 서버 키 없음 · 대체 좌표 사용"
     });
   }
 
@@ -335,7 +335,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(applyConservativeRiskFloor(withStatus({
       ...mockReport,
-      warnings: ["네이버/VWorld 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
+      warnings: ["네이버 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
     }, {
       id: "geocoding",
       label: "지도 지오코딩",

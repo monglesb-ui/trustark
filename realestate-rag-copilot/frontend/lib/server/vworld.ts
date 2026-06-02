@@ -1,5 +1,5 @@
 import { serverEnv } from "./env";
-import { addressSearchCandidates, normalizeKoreanAddress } from "./address-normalize";
+import { normalizeKoreanAddress } from "./address-normalize";
 import { geocodeAddressWithNaver } from "./naver-geocode";
 
 type VworldAddressType = "parcel" | "road";
@@ -110,18 +110,6 @@ export async function geocodeAddress(address: string) {
 
   const naverResult = await geocodeAddressWithNaver(trimmed);
   if (naverResult) return naverResult;
-
-  if (!serverEnv.vworldApiKey) return null;
-
-  const candidates = addressSearchCandidates(trimmed);
-  for (const candidate of candidates) {
-    const prefersRoad = /(?:로|길)\d*/.test(candidate);
-    const result = prefersRoad
-      ? (await fetchVworldAddress(candidate, "road")) ?? (await fetchVworldAddress(candidate, "parcel"))
-      : (await fetchVworldAddress(candidate, "parcel")) ?? (await fetchVworldAddress(candidate, "road"));
-
-    if (result) return result;
-  }
 
   return null;
 }

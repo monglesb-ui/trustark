@@ -5,13 +5,28 @@ import { useEffect, useRef } from "react";
 import { publicEnv } from "@/lib/public-env";
 import type { Location, MapMarker } from "@/lib/types";
 
+type NaverLatLng = unknown;
+type NaverMap = unknown;
+
 declare global {
   interface Window {
     naver?: {
       maps: {
-        LatLng: new (lat: number, lng: number) => unknown;
-        Map: new (element: HTMLElement, options: Record<string, unknown>) => unknown;
+        LatLng: new (lat: number, lng: number) => NaverLatLng;
+        Map: new (element: HTMLElement, options: Record<string, unknown>) => NaverMap;
         Marker: new (options: Record<string, unknown>) => unknown;
+        Service?: {
+          geocode: (
+            options: { query: string },
+            callback: (
+              status: string,
+              response: { v2?: { addresses?: Array<{ x?: string; y?: string; roadAddress?: string; jibunAddress?: string }> } }
+            ) => void
+          ) => void;
+          Status?: {
+            OK: string;
+          };
+        };
       };
     };
   }
@@ -29,16 +44,50 @@ export function MapView({ location, markers }: Props) {
   useEffect(() => {
     if (!clientId) return;
 
-    function renderMap() {
+    function markerSetFor(centerLat: number, centerLng: number, useClientGeocode: boolean) {
+      if (!useClientGeocode) return markers;
+
+      return markers
+        .filter((marker) => marker.marker_type === "target")
+        .map((marker) => ({ ...marker, lat: centerLat, lng: centerLng }));
+    }
+
+    function drawMap(centerLat: number, centerLng: number, useClientGeocode = false) {
       if (!mapRef.current || !window.naver?.maps) return;
-      const center = new window.naver.maps.LatLng(location.lat, location.lng);
-      const map = new window.naver.maps.Map(mapRef.current, { center, zoom: 15 });
-      markers.forEach((marker) => {
+
+      const center = new window.naver.maps.LatLng(centerLat, centerLng);
+      const map = new window.naver.maps.Map(mapRef.current, { center, zoom: 16 });
+      markerSetFor(centerLat, centerLng, useClientGeocode).forEach((marker) => {
         new window.naver!.maps.Marker({
           position: new window.naver!.maps.LatLng(marker.lat, marker.lng),
           map,
           title: marker.label
         });
+      });
+    }
+
+    function renderMap() {
+      if (!mapRef.current || !window.naver?.maps) return;
+
+      const geocoder = window.naver.maps.Service;
+      const okStatus = geocoder?.Status?.OK ?? "OK";
+
+      if (!geocoder) {
+        drawMap(location.lat, location.lng);
+        return;
+      }
+
+      geocoder.geocode({ query: location.address }, (status, response) => {
+        const first = response.v2?.addresses?.[0];
+        const lng = Number(first?.x);
+        const lat = Number(first?.y);
+
+        if (status === okStatus && Number.isFinite(lat) && Number.isFinite(lng)) {
+          drawMap(lat, lng, true);
+          return;
+        }
+
+        drawMap(location.lat, location.lng);
       });
     }
 
@@ -48,11 +97,11 @@ export function MapView({ location, markers }: Props) {
     }
 
     const script = document.createElement("script");
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
     script.async = true;
     script.onload = renderMap;
     document.head.appendChild(script);
-  }, [clientId, location.lat, location.lng, markers]);
+  }, [clientId, location.address, location.lat, location.lng, markers]);
 
   if (clientId) {
     return <div ref={mapRef} className="h-96 rounded-lg border border-ink/15 bg-white" aria-label="네이버 지도" />;
