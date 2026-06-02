@@ -12,6 +12,12 @@ function shouldUseLocalApi() {
   return ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
+function shouldUseClientMockFallback() {
+  if (API_BASE_URL) return false;
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+}
+
 export async function analyzeContract(payload: AnalyzeRequest): Promise<AnalyzeResponse> {
   const baseUrl = API_BASE_URL ?? (shouldUseLocalApi() ? LOCAL_API_BASE_URL : null);
   const endpoint = baseUrl ? `${baseUrl}/analyze` : INTERNAL_API_PATH;
@@ -32,7 +38,7 @@ export async function analyzeContract(payload: AnalyzeRequest): Promise<AnalyzeR
 
     return response.json();
   } catch (error) {
-    if (API_BASE_URL) {
+    if (!shouldUseClientMockFallback()) {
       throw error;
     }
 

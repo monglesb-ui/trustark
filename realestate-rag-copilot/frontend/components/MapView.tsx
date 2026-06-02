@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPinned } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { publicEnv } from "@/lib/public-env";
 import type { Location, MapMarker } from "@/lib/types";
 
@@ -47,6 +47,7 @@ type Props = {
 export function MapView({ location, markers }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const clientId = publicEnv.naverMapClientId;
+  const [mapStatus, setMapStatus] = useState("네이버 지도 준비 중");
 
   useEffect(() => {
     if (!clientId) return;
@@ -91,18 +92,22 @@ export function MapView({ location, markers }: Props) {
       const okStatus = geocoder?.Status?.OK ?? "OK";
 
       if (!geocoder) {
+        setMapStatus("Geocoder 서브모듈 없음 · 서버 좌표 사용");
         drawMap(location.lat, location.lng);
         return;
       }
 
+      setMapStatus("네이버 Geocoder 주소 변환 중");
       geocoder.geocode({ address: location.address }, (status, response) => {
         const parsed = parseClientGeocode(response);
 
         if (status === okStatus && parsed) {
+          setMapStatus(`네이버 Geocoder 성공 · ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}`);
           drawMap(parsed.lat, parsed.lng, true);
           return;
         }
 
+        setMapStatus(`네이버 Geocoder 실패(${status}) · 서버 좌표 사용`);
         drawMap(location.lat, location.lng);
       });
     }
@@ -116,11 +121,21 @@ export function MapView({ location, markers }: Props) {
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}&submodules=geocoder`;
     script.async = true;
     script.onload = renderMap;
+    script.onerror = () => {
+      setMapStatus("네이버 지도 스크립트 로드 실패");
+    };
     document.head.appendChild(script);
   }, [clientId, location.address, location.lat, location.lng, markers]);
 
   if (clientId) {
-    return <div ref={mapRef} className="h-96 rounded-lg border border-ink/15 bg-white" aria-label="네이버 지도" />;
+    return (
+      <div className="relative">
+        <div ref={mapRef} className="h-96 rounded-lg border border-ink/15 bg-white" aria-label="네이버 지도" />
+        <div className="absolute left-3 top-3 rounded-md border border-ink/10 bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-sm">
+          {mapStatus}
+        </div>
+      </div>
+    );
   }
 
   return (
