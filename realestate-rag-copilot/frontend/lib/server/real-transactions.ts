@@ -384,11 +384,15 @@ export function applyRentMarketSummary(report: AnalyzeResponse, summary: RentMar
       confirmed_facts: [
         `실거래가 전월세 표본 ${summary.sampleSize}건 조회`,
         `실거래가 평균 보증금: ${summary.averageDeposit ? summary.averageDeposit.toLocaleString("ko-KR") : "-"}원`,
-        ...report.sections.confirmed_facts.filter((item) => item !== "주변 mock 전세 표본은 4건입니다.")
+        ...report.sections.confirmed_facts.filter(
+          (item) => item !== "주변 mock 전세 표본은 4건입니다." && item !== "주변 대체 전세 표본은 4건입니다."
+        )
       ],
       assumptions: [
         "실거래 표본은 법정동 앞 5자리 지역코드와 최근 계약월 기준으로 조회했습니다.",
-        ...report.sections.assumptions.filter((item) => !item.includes("mock 거래 표본"))
+        ...report.sections.assumptions.filter(
+          (item) => !item.includes("mock 거래 표본") && !item.includes("대체 거래 표본")
+        )
       ]
     }
   } satisfies AnalyzeResponse;

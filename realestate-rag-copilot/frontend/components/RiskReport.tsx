@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getPropertyTypeLabel } from "@/lib/property-types";
-import type { AnalyzeResponse } from "@/lib/types";
+import type { AnalyzeResponse, DataSourceStatus } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
 import { MapView } from "./MapView";
 
@@ -32,8 +32,18 @@ function money(value?: number | null) {
 function sourceLabel(source: string) {
   if (source.startsWith("rag_docs")) return "RAG 문서";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
-  if (source.includes("mock")) return "Mock 시세";
+  if (source.includes("mock")) return "대체 표본";
   return source;
+}
+
+function dataMode(statuses: DataSourceStatus[] | undefined) {
+  const items = statuses ?? [];
+  if (items.length === 0) return "Fallback 분석";
+  const successCount = items.filter((item) => item.status === "success").length;
+  const fallbackCount = items.filter((item) => item.status !== "success").length;
+  if (successCount > 0 && fallbackCount > 0) return "Hybrid 분석";
+  if (successCount > 0) return "API 분석";
+  return "Fallback 분석";
 }
 
 function todayLabel() {
@@ -51,6 +61,9 @@ function escapeHtml(value: string) {
 
 function makeReportHtml(report: AnalyzeResponse) {
   const riskSignals = report.risk_signals ?? [];
+  const dataStatusItems = (report.data_statuses ?? [])
+    .map((item) => `<li><strong>${escapeHtml(item.label)}</strong>: ${escapeHtml(item.status)} · ${escapeHtml(item.detail)}</li>`)
+    .join("");
   const signalItems = riskSignals
     .map(
       (item) => `
@@ -102,7 +115,7 @@ function makeReportHtml(report: AnalyzeResponse) {
   <main>
     <div class="kicker">Trust Ark · 부동산 계약 리스크 코파일럿</div>
     <h1>전세 계약 사전 위험 검토 리포트</h1>
-    <p class="meta">${escapeHtml(report.location.address)} · 생성일 ${todayLabel()} · Mock 분석</p>
+    <p class="meta">${escapeHtml(report.location.address)} · 생성일 ${todayLabel()} · ${escapeHtml(dataMode(report.data_statuses))}</p>
     <section class="summary">
       <strong>종합 위험도: ${escapeHtml(report.risk_level)}</strong>
       <div class="score">${report.risk_score}</div>
@@ -115,6 +128,8 @@ function makeReportHtml(report: AnalyzeResponse) {
       <div><dt>차이율</dt><dd>${report.market_comparison.difference_rate}%</dd></div>
       <div><dt>표본 수</dt><dd>${report.market_comparison.sample_size}건</dd></div>
     </dl>
+    <h2>데이터 조회 상태</h2>
+    <ul>${dataStatusItems}</ul>
     <h2>핵심 위험 신호</h2>
     <ul>${signalItems || evidenceItems}</ul>
     <h2>핵심 근거</h2>
@@ -166,7 +181,22 @@ function SeverityPill({ severity }: { severity: string }) {
   return <span className={`rounded-md px-2.5 py-1 text-xs font-black ${className}`}>{severity}</span>;
 }
 
-function DataStatusStrip({ report }: { report: AnalyzeResponse }) {
+function statusById(report: AnalyzeResponse, id: string) {
+  return report.data_statuses?.find((item) => item.id === id);
+}
+
+function statusText(status?: DataSourceStatus) {
+  if (!status) return "상태 정보 없음";
+  const label = {
+    success: "성공",
+    fallback: "대체 표본",
+    missing: "표본 없음",
+    failed: "실패"
+  }[status.status];
+  return `${label} · ${status.detail}`;
+}
+
+function DataStatusStrip({ report, framed = true }: { report: AnalyzeResponse; framed?: boolean }) {
   const statuses = report.data_statuses ?? [];
   if (statuses.length === 0) return null;
 
@@ -183,8 +213,8 @@ function DataStatusStrip({ report }: { report: AnalyzeResponse }) {
     failed: XCircle
   };
 
-  return (
-    <section className="dashboard-panel p-4">
+  const content = (
+    <>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-sm font-black text-ink">데이터 조회 상태</h2>
         <span className="text-xs font-bold text-ink/45">API/fallback trace</span>
@@ -203,8 +233,12 @@ function DataStatusStrip({ report }: { report: AnalyzeResponse }) {
           );
         })}
       </div>
-    </section>
+    </>
   );
+
+  if (!framed) return <div>{content}</div>;
+
+  return <section className="dashboard-panel p-4">{content}</section>;
 }
 
 type AgentReport = {
@@ -219,14 +253,20 @@ type AgentReport = {
 function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): AgentReport[] {
   const inputDeposit = money(report.market_comparison.input_deposit);
   const nearbyDeposit = money(report.market_comparison.nearby_avg_deposit);
+  const geocodingStatus = statusById(report, "geocoding");
+  const legalDongStatus = statusById(report, "legal-dong");
+  const rentStatus = statusById(report, "rent-market");
+  const saleStatus = statusById(report, "sale-market");
 
   return [
     {
       name: "Market Data Agent",
       status: "완료",
-      purpose: "입력된 계약 금액과 주변 mock 거래 표본을 비교해 시세 적정성의 1차 근거를 만들었습니다.",
-      tasks: ["입력 보증금 확인", "주변 mock 전세 표본 평균 계산", "표본 수와 차이율 산출"],
+      purpose: "입력된 계약 금액과 실거래가 또는 대체 표본을 비교해 시세 적정성의 1차 근거를 만들었습니다.",
+      tasks: ["입력 보증금 확인", "전월세 실거래가 조회 또는 대체 표본 적용", "매매 실거래가 조회와 전세가율 가능성 확인", "표본 수와 차이율 산출"],
       observations: [
+        `전월세 실거래가: ${statusText(rentStatus)}`,
+        `매매 실거래가: ${statusText(saleStatus)}`,
         `입력 보증금은 ${inputDeposit}입니다.`,
         `주변 평균 보증금은 ${nearbyDeposit}입니다.`,
         `차이율은 ${report.market_comparison.difference_rate}%이고 표본 수는 ${report.market_comparison.sample_size}건입니다.`
@@ -249,11 +289,15 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       name: "Location Context Agent",
       status: "완료",
       purpose: "대상 주소와 주변 거래 표본의 위치 맥락을 구성해 비교 표본이 어디에 놓이는지 보여줬습니다.",
-      tasks: ["대상 주소를 mock 좌표로 매핑", "대상 marker와 주변 marker 구성", "지도 API 미연결 시 demo coordinate fallback 적용"],
+      tasks: ["주소 정규화", "VWorld 지오코딩 상태 확인", "법정동코드 조회 상태 확인", "대상 marker와 주변 marker 구성"],
       observations: [
+        `VWorld 지오코딩: ${statusText(geocodingStatus)}`,
+        `법정동코드: ${statusText(legalDongStatus)}`,
         `대상 좌표는 ${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}입니다.`,
         `지도 marker는 총 ${report.markers.length}개입니다.`,
-        "좌표는 데모용 mock 좌표이므로 정확한 지오코딩으로 단정하지 않았습니다."
+        geocodingStatus?.status === "success"
+          ? "대상 좌표는 VWorld 지오코딩 결과를 사용했습니다."
+          : "대상 좌표는 대체 좌표를 사용했으므로 정확한 위치로 단정하지 않습니다."
       ],
       delivered: ["target marker", "nearby markers", "location caveat"]
     },
@@ -400,6 +444,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
     [report]
   );
   const generatedAt = todayLabel();
+  const modeLabel = dataMode(report.data_statuses);
   const confidenceItems = [
     ["시세 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.sample_size >= 5 ? "보통" : "낮음"],
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
@@ -422,6 +467,9 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
         <div className="flex items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-xs font-bold text-ink/60">
           <CalendarDays aria-hidden="true" size={15} className="text-moss" />
           {generatedAt}
+        </div>
+        <div className="rounded-md border border-moss/20 bg-moss/10 px-3 py-2 text-xs font-black text-moss">
+          {modeLabel}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-bold text-ink/45">레이아웃</span>
@@ -477,7 +525,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           <p className="text-xs font-black uppercase tracking-[0.18em] text-moss">Trust Ark Report</p>
           <h1 className="mt-3 font-serif text-4xl font-black text-ink">전세 계약 사전 위험 검토 리포트</h1>
           <p className="mt-3 text-sm leading-6 text-ink/65">
-            본 문서는 현재 입력값과 mock 데이터, RAG 체크리스트 근거를 바탕으로 생성된 참고용 분석 리포트입니다.
+            본 문서는 현재 입력값, 데이터 조회 상태, RAG 체크리스트 근거를 바탕으로 생성된 참고용 분석 리포트입니다.
           </p>
 
           <section className={`mt-8 rounded-lg border p-5 ${tone}`}>
@@ -524,12 +572,17 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="03" title="RAG 근거 문서" />
+            <SectionTitle number="03" title="데이터 조회 상태" description={modeLabel} />
+            <DataStatusStrip report={report} framed={false} />
+          </section>
+
+          <section className="mt-8">
+            <SectionTitle number="04" title="RAG 근거 문서" />
             <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="04" title="다음 확인 액션" />
+            <SectionTitle number="05" title="다음 확인 액션" />
             <ol className="grid gap-2 text-sm leading-6 text-ink/75">
               {report.next_actions.map((item) => (
                 <li key={item} className="rounded-md border border-ink/10 bg-white p-3">{item}</li>
@@ -538,7 +591,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="05" title="검토 상태" />
+            <SectionTitle number="06" title="검토 상태" />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
                 <h3 className="font-bold text-ink">확인된 사실</h3>

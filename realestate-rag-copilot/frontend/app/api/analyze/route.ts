@@ -54,7 +54,7 @@ function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<ty
       id: "geocoding",
       label: "VWorld 지오코딩",
       status: "fallback",
-      detail: "좌표 변환 실패 또는 키 없음 · mock 좌표 사용"
+      detail: "좌표 변환 실패 또는 키 없음 · 대체 좌표 사용"
     });
   }
 
@@ -151,6 +151,25 @@ function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeReque
     urban_living: ["도시형생활주택은 보증보험 조건과 실거래 표본 신뢰도를 별도로 검토해야 합니다."]
   };
   const messages = cautions[group] ?? [];
+  const typeActions: Record<string, string[]> = {
+    multifamily: [
+      "다가구주택 전체 임차인의 보증금 합계와 선순위 확정일자 순위를 확인",
+      "건물 전체 등기부등본에서 근저당권, 압류, 가압류와 임대인 소유관계를 확인",
+      "전입신고 가능 여부와 전세보증금 반환보증 가입 가능 여부를 보증기관 기준으로 확인"
+    ],
+    rowhouse: [
+      "동일 건물·동일 면적대의 다세대/연립 실거래 표본을 추가 확보",
+      "개별 호실 등기부등본과 건축물대장의 용도·위반건축물 여부 확인"
+    ],
+    officetel: [
+      "주거용 사용 가능 여부와 전입신고 가능 여부 확인",
+      "전세보증금 반환보증 가입 가능 여부를 보증기관 기준으로 확인"
+    ],
+    mixed_use: [
+      "상가와 주거 부분의 면적·용도 구분을 건축물대장에서 확인",
+      "주택임대차보호법 적용 범위와 보증보험 가능 여부 확인"
+    ]
+  };
 
   if (messages.length === 0) {
     return {
@@ -176,6 +195,7 @@ function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeReque
       },
       ...(report.risk_signals ?? [])
     ],
+    next_actions: unique([...(typeActions[group] ?? []), ...report.next_actions]),
     sections: {
       ...report.sections,
       confirmed_facts: [`주택 유형: ${label}`, ...report.sections.confirmed_facts],
@@ -286,7 +306,7 @@ export async function POST(request: Request) {
           id: "rent-market",
           label: "전월세 실거래가",
           status: legalDong ? "missing" : "fallback",
-          detail: legalDong ? "조회 표본 없음 · mock 표본 유지" : "법정동코드 없음 · mock 표본 유지"
+          detail: legalDong ? "조회 표본 없음 · 대체 표본 유지" : "법정동코드 없음 · 대체 표본 유지"
         });
     const saleSummary = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type) : null;
 
@@ -313,12 +333,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(applyConservativeRiskFloor(withStatus({
       ...mockReport,
-      warnings: ["VWorld 지오코딩에 실패해 mock 좌표로 분석했습니다.", ...mockReport.warnings]
+      warnings: ["VWorld 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
     }, {
       id: "geocoding",
       label: "VWorld 지오코딩",
       status: "failed",
-      detail: "예외 발생 · mock 좌표 사용"
+      detail: "예외 발생 · 대체 좌표 사용"
     }), payload));
   }
 }

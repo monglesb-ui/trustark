@@ -18,7 +18,7 @@ import type { LucideIcon } from "lucide-react";
 import { AnalysisForm } from "@/components/AnalysisForm";
 import { RiskReport } from "@/components/RiskReport";
 import { analyzeContract } from "@/lib/api";
-import type { AnalyzeRequest, AnalyzeResponse } from "@/lib/types";
+import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
 
 type AgentStep = {
   name: string;
@@ -33,10 +33,10 @@ const agentSteps: AgentStep[] = [
   {
     name: "Market Data Agent",
     shortName: "시세 표본",
-    role: "mock 거래 표본과 입력 보증금 차이를 비교합니다.",
-    preview: "주변 전세 표본 4건 · 평균 보증금 2억 5,600만원",
+    role: "실거래가 API와 대체 표본을 비교해 입력 보증금의 위치를 계산합니다.",
+    preview: "전월세 표본 · 매매 표본 · 입력 보증금 차이율 계산",
     Icon: Database,
-    logs: ["주소 기준 mock 좌표를 확인", "최근 주변 전세 표본 4건 로드", "입력 보증금과 평균 보증금 차이율 계산"]
+    logs: ["주소 기준 지역코드와 좌표 상태 확인", "전월세 실거래가 API 또는 대체 표본 로드", "입력 보증금과 평균 보증금 차이율 계산"]
   },
   {
     name: "RAG Evidence Agent",
@@ -50,9 +50,9 @@ const agentSteps: AgentStep[] = [
     name: "Location Context Agent",
     shortName: "위치 맥락",
     role: "대상지와 주변 표본 marker를 구성합니다.",
-    preview: "대상 marker 1개 · 주변 marker 4개 구성",
+    preview: "대상 marker · 주변 marker · 좌표 조회 상태 구성",
     Icon: MapPinned,
-    logs: ["대상 주소를 샘플 좌표에 매핑", "주변 거래 표본을 지도 marker로 변환", "지도 API 미연결 시 데모 좌표 fallback 준비"]
+    logs: ["대상 주소를 VWorld/Naver 지도 좌표 흐름으로 정규화", "주변 거래 표본을 지도 marker로 변환", "좌표 조회 실패 시 대체 좌표 fallback 표시"]
   },
   {
     name: "Risk Scoring Agent",
@@ -81,6 +81,38 @@ const pipelineItems: Array<[string, string, LucideIcon]> = agentSteps.slice(0, 4
 type AnalysisStage = "idle" | "analyzing" | "report";
 
 const stepDelayMs = 820;
+
+function dataMode(statuses: DataSourceStatus[] | undefined) {
+  const items = statuses ?? [];
+  if (items.length === 0) return "Fallback 분석";
+  const successCount = items.filter((item) => item.status === "success").length;
+  const fallbackCount = items.filter((item) => item.status !== "success").length;
+  if (successCount > 0 && fallbackCount > 0) return "Hybrid 분석";
+  if (successCount > 0) return "API 분석";
+  return "Fallback 분석";
+}
+
+function statusSummary(report: AnalyzeResponse | null) {
+  if (!report) {
+    return {
+      label: "API/fallback ready",
+      detail: "주소, 법정동코드, 실거래가 API를 우선 조회하고 부족한 구간은 대체 표본으로 표시합니다.",
+      tone: "border-moss/25 bg-moss/10"
+    };
+  }
+
+  const mode = dataMode(report.data_statuses);
+  const fallbackCount = (report.data_statuses ?? []).filter((item) => item.status !== "success").length;
+
+  return {
+    label: mode,
+    detail:
+      fallbackCount > 0
+        ? `${fallbackCount}개 데이터 소스는 표본 없음/대체 표본 상태입니다. 리포트의 데이터 조회 상태에서 근거를 확인하세요.`
+        : "핵심 데이터 소스가 API 조회 결과로 반영되었습니다.",
+    tone: mode === "API 분석" ? "border-moss/25 bg-moss/10" : "border-brass/30 bg-brass/10"
+  };
+}
 
 function wait(ms: number) {
   return new Promise((resolve) => {
@@ -198,7 +230,7 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
         <div className="border-t border-ink/10 bg-paper/70 p-5 sm:p-6 xl:border-l xl:border-t-0">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="font-black text-ink">Live Trace</h3>
-            <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">mock runtime</span>
+            <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">agent runtime</span>
           </div>
           <div className="grid max-h-[31rem] gap-2 overflow-hidden">
             {visibleLogs.map((item, index) => (
@@ -224,6 +256,7 @@ export default function Home() {
   const [stage, setStage] = useState<AnalysisStage>("idle");
   const [activeStep, setActiveStep] = useState(0);
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
+  const sidebarStatus = statusSummary(report);
 
   useEffect(() => {
     window.localStorage.setItem("trust-ark-theme", darkMode ? "dark" : "light");
@@ -279,7 +312,7 @@ export default function Home() {
               </h1>
               <p className="mt-2 text-sm font-bold text-moss">부동산 계약 리스크 코파일럿</p>
               <p className="mt-4 text-sm leading-6 text-ink/68">
-                계약 조건을 입력하면 mock 거래 데이터, RAG 체크리스트, Agent 흐름으로 리스크 신호를 분리합니다.
+                계약 조건을 입력하면 실거래가 API, 대체 표본, RAG 체크리스트, Agent 흐름으로 리스크 신호를 분리합니다.
               </p>
             </div>
 
@@ -307,13 +340,13 @@ export default function Home() {
             </section>
 
             <aside className="mt-auto pt-5">
-              <div className="rounded-lg border border-brass/30 bg-brass/10 p-4">
+              <div className={`rounded-lg border p-4 ${sidebarStatus.tone}`}>
                 <div className="flex items-center gap-2 text-sm font-bold text-ink">
                   <Activity aria-hidden="true" size={17} className="text-brass" />
-                  Mock mode active
+                  {sidebarStatus.label}
                 </div>
                 <p className="mt-2 text-xs leading-5 text-ink/65">
-                  실제 계약 판단이 아니라 현재 데이터 기준의 참고 분석입니다. 등기부등본, 보증보험, 전문가 검토가 필요합니다.
+                  {sidebarStatus.detail} 실제 계약 판단은 등기부등본, 보증보험, 전문가 검토가 함께 필요합니다.
                 </p>
               </div>
             </aside>

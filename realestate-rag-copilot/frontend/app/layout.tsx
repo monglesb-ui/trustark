@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "트러스트 아크(Trust Ark) | 부동산 RAG 의사결정 코파일럿",
-  description: "계약 전 위험 신호를 mock data와 RAG 근거로 점검하는 웹 데모"
+  description: "계약 전 위험 신호를 실거래가 API, 대체 표본, RAG 근거로 점검하는 웹 데모"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

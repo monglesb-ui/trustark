@@ -66,7 +66,7 @@ export function MapView({ location, markers }: Props) {
           <h2 className="text-lg font-bold">지도 데모</h2>
         </div>
         <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">
-          mock coordinates
+          fallback coordinates
         </span>
       </div>
       <div className="relative h-96 overflow-hidden rounded-lg border border-dashed border-moss/50 bg-[linear-gradient(90deg,rgba(47,111,97,0.08)_1px,transparent_1px),linear-gradient(180deg,rgba(47,111,97,0.08)_1px,transparent_1px)] bg-[length:28px_28px]">
@@ -74,7 +74,7 @@ export function MapView({ location, markers }: Props) {
         <div className="absolute left-[12%] right-[10%] top-[52%] h-1 -rotate-6 rounded-full bg-moss/20" />
         <div className="absolute bottom-[18%] left-[18%] top-[12%] w-1 rotate-12 rounded-full bg-brass/20" />
         <div className="absolute left-5 top-5 max-w-[18rem] rounded-md border border-ink/10 bg-white/95 p-3 text-sm shadow-panel">
-          지도 API 키가 없어 데모 좌표와 주변 표본 분포를 표시합니다.
+          지도 API 키가 없거나 좌표 조회가 실패하면 대체 좌표와 주변 표본 분포를 표시합니다.
         </div>
         {markers.slice(0, 6).map((marker, index) => (
           <div

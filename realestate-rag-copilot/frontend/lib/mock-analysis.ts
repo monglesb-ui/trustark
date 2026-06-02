@@ -16,9 +16,9 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
   return {
     request_property_type: payload.property_type,
     data_statuses: [
-      { id: "geocoding", label: "VWorld 지오코딩", status: "fallback", detail: "mock 좌표 사용" },
+      { id: "geocoding", label: "VWorld 지오코딩", status: "fallback", detail: "대체 좌표 사용" },
       { id: "legal-dong", label: "법정동코드", status: "missing", detail: "법정동코드 미조회" },
-      { id: "rent-market", label: "전월세 실거래가", status: "fallback", detail: "mock 전월세 표본 4건" },
+      { id: "rent-market", label: "전월세 실거래가", status: "fallback", detail: "대체 전월세 표본 4건" },
       { id: "sale-market", label: "매매 실거래가", status: "missing", detail: "매매 표본 없음" }
     ],
     risk_level: riskLevel,
@@ -26,7 +26,7 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
     summary:
       differenceRate >= 15
         ? "깡통전세 의심 구간입니다. 계약 전 등기부등본, 선순위 채권, 보증보험 가입 가능 여부를 추가 확인해 주세요."
-        : "현재 입력값은 주변 mock 시세 대비 추가 확인이 필요한 범위입니다. 계약 전 권리관계와 보증보험 조건을 함께 검토하세요.",
+        : "현재 입력값은 주변 대체 표본 대비 추가 확인이 필요한 범위입니다. 계약 전 권리관계와 보증보험 조건을 함께 검토하세요.",
     location: {
       lat: 37.5636,
       lng: 126.9217,
@@ -64,7 +64,7 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
         metric: "표본 4건",
         description:
           "최근 6개월 인근 실거래 표본이 적어 시세 신뢰구간이 넓습니다. 다세대·연립은 아파트보다 시세 산정이 어려워 감정가와 공시가격 교차 확인이 필요합니다.",
-        source: "mock 거래 표본 데이터"
+        source: "fallback 거래 표본 데이터"
       }
     ],
     evidence: [
@@ -75,7 +75,7 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
       },
       {
         title: "표본 부족",
-        description: "인근 mock 거래 표본이 4건으로 제한적이어서 단일 평균값만으로 판단하기 어렵습니다.",
+        description: "인근 대체 거래 표본이 4건으로 제한적이어서 단일 평균값만으로 판단하기 어렵습니다.",
         source: "risk_rule:sample_size"
       },
       {
@@ -96,18 +96,18 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
       "특약에 잔금 전 권리변동 금지와 보증보험 협조 의무 포함"
     ],
     warnings: [
-      "본 결과는 mock 데이터 기반 참고 분석이며 법적 판단이 아닙니다.",
+      "본 결과는 API 조회와 대체 표본을 함께 사용한 참고 분석이며 법적 판단이 아닙니다.",
       "계약 전 공인중개사, 법률 전문가, 보증기관 확인이 필요합니다."
     ],
     sections: {
       confirmed_facts: [
         `${payload.contract_type === "jeonse" ? "전세" : payload.contract_type} 계약 조건이 입력되었습니다.`,
         `입력 보증금은 ${formatter.format(inputDeposit)}원입니다.`,
-        `주변 mock 전세 표본은 ${4}건입니다.`
+        `주변 대체 전세 표본은 ${4}건입니다.`
       ],
       assumptions: [
         "주소는 샘플 좌표로 변환되었습니다.",
-        "시세는 mock 거래 표본의 단순 평균을 기준으로 계산했습니다."
+        "시세는 대체 거래 표본의 단순 평균을 기준으로 계산했습니다."
       ],
       unverified_items: [
         "실제 등기부등본 권리관계",
