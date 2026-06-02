@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildMockAnalysis } from "@/lib/mock-analysis";
+import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types";
 import type { AnalyzeRequest, AnalyzeResponse, MapMarker } from "@/lib/types";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, lookupLegalDongCode } from "@/lib/server/legal-dong";
@@ -100,6 +101,50 @@ function applyLegalDongCode(
   } satisfies AnalyzeResponse;
 }
 
+function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeRequest) {
+  const group = getPropertyTypeGroup(payload.property_type);
+  const label = getPropertyTypeLabel(payload.property_type);
+  const cautions: Record<string, string[]> = {
+    multifamily: ["다가구주택은 호실별 구분등기가 어려울 수 있어 선순위 임차인과 총 보증금 규모 확인이 중요합니다."],
+    officetel: ["오피스텔은 주거용 여부, 전입신고 가능 여부, 보증보험 가입 가능 여부를 별도로 확인해야 합니다."],
+    mixed_use: ["상가주택은 주거/상가 용도와 임대차보호 적용 범위를 건축물대장과 계약서에서 확인해야 합니다."],
+    detached: ["단독주택은 담보권, 대지/건물 소유관계, 건축물대장 용도 확인이 필요합니다."],
+    urban_living: ["도시형생활주택은 보증보험 조건과 실거래 표본 신뢰도를 별도로 검토해야 합니다."]
+  };
+  const messages = cautions[group] ?? [];
+
+  if (messages.length === 0) {
+    return {
+      ...report,
+      request_property_type: payload.property_type
+    } satisfies AnalyzeResponse;
+  }
+
+  const adjustedScore = Math.max(report.risk_score, 60);
+
+  return {
+    ...report,
+    request_property_type: payload.property_type,
+    risk_score: adjustedScore,
+    risk_level: adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : report.risk_level,
+    risk_signals: [
+      {
+        severity: "확인 필요",
+        title: `${label} 특화 확인 항목`,
+        metric: label,
+        description: messages[0],
+        source: "risk_rule:property_type_context"
+      },
+      ...(report.risk_signals ?? [])
+    ],
+    sections: {
+      ...report.sections,
+      confirmed_facts: [`주택 유형: ${label}`, ...report.sections.confirmed_facts],
+      unverified_items: [...messages, ...report.sections.unverified_items]
+    }
+  } satisfies AnalyzeResponse;
+}
+
 export async function POST(request: Request) {
   let payload: AnalyzeRequest;
 
@@ -109,7 +154,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-  const mockReport = buildMockAnalysis(payload);
+    const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
 
   try {
     const geocoded = await geocodeAddress(payload.address);

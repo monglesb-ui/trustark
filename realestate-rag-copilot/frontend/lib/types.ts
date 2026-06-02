@@ -1,3 +1,5 @@
+import type { PropertyType } from "./property-types";
+
 export type ContractType = "jeonse" | "monthly" | "sale";
 
 export type AnalyzeRequest = {
@@ -6,7 +8,7 @@ export type AnalyzeRequest = {
   deposit: number;
   monthly_rent: number;
   sale_price: number | null;
-  property_type: string;
+  property_type: PropertyType;
   user_question: string;
 };
 
@@ -57,6 +59,7 @@ export type AnalysisSections = {
 };
 
 export type AnalyzeResponse = {
+  request_property_type?: PropertyType;
   risk_level: string;
   risk_score: number;
   summary: string;

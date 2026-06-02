@@ -14,6 +14,7 @@ export function buildMockAnalysis(payload: AnalyzeRequest): AnalyzeResponse {
   const riskLevel = riskScore >= 75 ? "위험 · HIGH" : riskScore >= 60 ? "검토 필요" : "낮음";
 
   return {
+    request_property_type: payload.property_type,
     risk_level: riskLevel,
     risk_score: riskScore,
     summary:

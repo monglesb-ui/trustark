@@ -1,6 +1,7 @@
 "use client";
 
 import { ClipboardCheck, Search } from "lucide-react";
+import { propertyTypeOptions } from "@/lib/property-types";
 import type { AnalyzeRequest } from "@/lib/types";
 
 type Props = {
@@ -18,7 +19,7 @@ export function AnalysisForm({ loading, onSubmit }: Props) {
       deposit: Number(form.get("deposit") || 0),
       monthly_rent: Number(form.get("monthly_rent") || 0),
       sale_price: form.get("sale_price") ? Number(form.get("sale_price")) : null,
-      property_type: String(form.get("property_type")),
+      property_type: String(form.get("property_type")) as AnalyzeRequest["property_type"],
       user_question: String(form.get("user_question"))
     });
   }
@@ -53,10 +54,12 @@ export function AnalysisForm({ loading, onSubmit }: Props) {
           </label>
           <label className="grid gap-2 text-sm font-medium">
             주택 유형
-            <select name="property_type" className="h-11 border border-ink/15 bg-white px-3 shadow-inner shadow-ink/[0.03]" defaultValue="villa">
-              <option value="villa">빌라</option>
-              <option value="apartment">아파트</option>
-              <option value="officetel">오피스텔</option>
+            <select name="property_type" className="h-11 border border-ink/15 bg-white px-3 shadow-inner shadow-ink/[0.03]" defaultValue="multi_household">
+              {propertyTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

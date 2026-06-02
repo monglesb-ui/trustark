@@ -1,4 +1,5 @@
 import type { AnalyzeRequest, AnalyzeResponse, MapMarker } from "@/lib/types";
+import { getPropertyTypeGroup } from "@/lib/property-types";
 import { serverEnv } from "./env";
 
 type RentEndpoint = {
@@ -73,14 +74,14 @@ function getServiceKey() {
 }
 
 function endpointFor(propertyType: string) {
-  const normalized = propertyType.toLowerCase();
-  if (normalized.includes("apt") || normalized.includes("아파트")) return APT_RENT_ENDPOINT;
+  const group = getPropertyTypeGroup(propertyType);
+  if (group === "apartment") return APT_RENT_ENDPOINT;
   return ROWHOUSE_RENT_ENDPOINT;
 }
 
 function tradeEndpointFor(propertyType: string) {
-  const normalized = propertyType.toLowerCase();
-  if (normalized.includes("apt") || normalized.includes("아파트")) return APT_TRADE_ENDPOINT;
+  const group = getPropertyTypeGroup(propertyType);
+  if (group === "apartment") return APT_TRADE_ENDPOINT;
   return ROWHOUSE_TRADE_ENDPOINT;
 }
 

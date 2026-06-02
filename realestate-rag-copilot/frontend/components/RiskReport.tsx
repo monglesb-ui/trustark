@@ -15,6 +15,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { getPropertyTypeLabel } from "@/lib/property-types";
 import type { AnalyzeResponse } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
 import { MapView } from "./MapView";
@@ -371,7 +372,9 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
         </div>
         <div className="min-w-0">
           <h2 className="font-bold text-ink">{report.location.address}</h2>
-          <p className="text-sm text-ink/60">전세 · 빌라 · 보증금 {money(report.market_comparison.input_deposit)} · 분석 완료</p>
+          <p className="text-sm text-ink/60">
+            전세 · {getPropertyTypeLabel(report.request_property_type ?? "multi_household")} · 보증금 {money(report.market_comparison.input_deposit)} · 분석 완료
+          </p>
         </div>
         <div className="flex items-center gap-2 rounded-md border border-ink/10 bg-paper px-3 py-2 text-xs font-bold text-ink/60">
           <CalendarDays aria-hidden="true" size={15} className="text-moss" />
