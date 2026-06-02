@@ -265,6 +265,7 @@ function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeReq
   const unverifiedText = report.sections.unverified_items.join(" ");
   const hasRightsGap = /등기|권리|선순위|보증보험/.test(unverifiedText);
   const sparseMarket = sampleSize < 5;
+  const jeonseRatio = report.market_comparison.jeonse_ratio;
   const nonApartment = group !== "apartment";
   const reasons: string[] = [];
   let floor = 0;
@@ -299,7 +300,9 @@ function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeReq
     risk_level: levelFor(adjustedScore),
     summary:
       adjustedScore >= 60
-        ? "현재 표본만으로 안전하다고 단정하기 어렵습니다. 실제 매매가, 등기부등본, 선순위 권리, 보증보험 가능 여부를 추가 확인해 주세요."
+        ? jeonseRatio !== null && jeonseRatio !== undefined
+          ? `실거래 매매 표본 기준 전세가율은 ${jeonseRatio}%입니다. 가격 기준 위험은 ${jeonseRatio >= 70 ? "추가 검토가 필요" : "높지 않"}지만, 등기부등본·선순위 권리·보증보험 가능 여부는 아직 확인 전입니다.`
+          : "현재 표본만으로 안전하다고 단정하기 어렵습니다. 실제 매매가, 등기부등본, 선순위 권리, 보증보험 가능 여부를 추가 확인해 주세요."
         : report.summary,
     risk_signals: [
       {

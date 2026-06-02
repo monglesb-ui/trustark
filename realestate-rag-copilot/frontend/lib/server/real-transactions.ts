@@ -603,20 +603,40 @@ function riskLevel(score: number) {
   return "낮음";
 }
 
+function scoreFromJeonseRatio(jeonseRatio: number | null, fallbackScore: number) {
+  if (jeonseRatio === null) return fallbackScore;
+  if (jeonseRatio >= 90) return 86;
+  if (jeonseRatio >= 80) return 78;
+  if (jeonseRatio >= 70) return 65;
+  return 52;
+}
+
+function removeFallbackMarketSignals(report: AnalyzeResponse) {
+  const staleSources = new Set(["국토교통부 전세사기 예방 체크리스트", "fallback 거래 표본 데이터", "risk_rule:deposit_to_market_ratio"]);
+  const staleTitlePattern = /깡통전세|전세가율 확인|시세 표본 부족|표본 부족/;
+
+  return {
+    ...report,
+    risk_signals: (report.risk_signals ?? []).filter(
+      (item) => !staleSources.has(item.source) && !staleTitlePattern.test(item.title)
+    ),
+    evidence: report.evidence.filter((item) => !staleSources.has(item.source) && !staleTitlePattern.test(item.title)),
+    sections: {
+      ...report.sections,
+      confirmed_facts: report.sections.confirmed_facts.filter((item) => !item.includes("주변 대체 전세 표본")),
+      assumptions: report.sections.assumptions.filter(
+        (item) => !item.includes("대체 거래 표본") && !item.includes("대체 전세 표본") && !item.includes("단순 평균")
+      )
+    }
+  } satisfies AnalyzeResponse;
+}
+
 export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMarketSummary, payload: AnalyzeRequest) {
+  const cleanedReport = removeFallbackMarketSignals(report);
   const inputDeposit = payload.deposit || report.market_comparison.input_deposit || 0;
   const salePrice = payload.sale_price || summary.averageSalePrice || report.market_comparison.input_sale_price || 0;
   const jeonseRatio = salePrice > 0 ? Math.round((inputDeposit / salePrice) * 100) : null;
-  const adjustedScore =
-    jeonseRatio === null
-      ? report.risk_score
-      : jeonseRatio >= 90
-        ? Math.max(report.risk_score, 86)
-        : jeonseRatio >= 80
-          ? Math.max(report.risk_score, 78)
-          : jeonseRatio >= 70
-            ? Math.max(report.risk_score, 65)
-            : report.risk_score;
+  const adjustedScore = scoreFromJeonseRatio(jeonseRatio, cleanedReport.risk_score);
   const sampleDescriptions = summary.transactions
     .slice(0, 3)
     .map((item) => `${item.dealMonth} ${item.label} 매매가 ${Math.round(item.salePrice / 10000).toLocaleString("ko-KR")}만원`)
@@ -640,49 +660,51 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
       : [];
 
   return {
-    ...report,
+    ...cleanedReport,
     risk_score: adjustedScore,
     risk_level: riskLevel(adjustedScore),
     summary:
       jeonseRatio !== null && jeonseRatio >= 80
         ? `실거래 매매 표본 기준 전세가율이 ${jeonseRatio}%로 높습니다. 계약 전 권리관계, 선순위 채권, 보증보험 가능 여부를 우선 확인해 주세요.`
-        : report.summary,
+        : jeonseRatio !== null
+          ? `실거래 매매 표본 기준 전세가율은 ${jeonseRatio}%입니다. 가격 기준 위험은 높지 않지만, 등기부등본·선순위 권리·보증보험 가능 여부는 계약 전 확인해야 합니다.`
+          : cleanedReport.summary,
     market_comparison: {
-      ...report.market_comparison,
+      ...cleanedReport.market_comparison,
       nearby_avg_sale_price: summary.averageSalePrice,
       input_sale_price: payload.sale_price ?? summary.averageSalePrice,
       input_deposit: inputDeposit,
-      complex_name: report.market_comparison.complex_name ?? summary.complexName,
-      match_mode: report.market_comparison.match_mode === "complex" || summary.matchMode === "complex" ? "complex" : summary.matchMode,
-      regional_sample_size: Math.max(report.market_comparison.regional_sample_size ?? 0, summary.regionalSampleSize),
+      complex_name: cleanedReport.market_comparison.complex_name ?? summary.complexName,
+      match_mode: cleanedReport.market_comparison.match_mode === "complex" || summary.matchMode === "complex" ? "complex" : summary.matchMode,
+      regional_sample_size: Math.max(cleanedReport.market_comparison.regional_sample_size ?? 0, summary.regionalSampleSize),
       sale_sample_size: summary.sampleSize,
       latest_sale_price: summary.latestTransaction?.salePrice ?? null,
       latest_sale_deal_month: summary.latestTransaction?.dealMonth ?? null,
       jeonse_ratio: jeonseRatio
     },
-    risk_signals: [...highRiskSignal, ...(report.risk_signals ?? [])],
+    risk_signals: [...highRiskSignal, ...(cleanedReport.risk_signals ?? [])],
     evidence: [
       {
         title: summary.matchMode === "complex" ? "입력 단지 매매 실거래가 조회" : "지역 매매 실거래가 참고 조회",
         description: `${summary.endpointName}에서 ${matchLabel} 최근 매매 표본 ${summary.sampleSize}건을 사용했습니다. 지역 전체 후보는 ${summary.regionalSampleSize}건입니다.${sampleDescriptions ? ` 주요 표본: ${sampleDescriptions}` : ""}`,
         source: summary.source
       },
-      ...report.evidence
+      ...cleanedReport.evidence
     ],
     sections: {
-      ...report.sections,
+      ...cleanedReport.sections,
       confirmed_facts: [
         `${summary.matchMode === "complex" ? "입력 단지" : "지역 참고"} 매매 실거래가 표본 ${summary.sampleSize}건 조회`,
         `최근 매매 실거래가: ${summary.latestTransaction ? summary.latestTransaction.salePrice.toLocaleString("ko-KR") : "-"}원`,
         `매매 평균 실거래가: ${summary.averageSalePrice ? summary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`,
         ...(jeonseRatio !== null ? [`실거래 매매가 기준 전세가율: ${jeonseRatio}%`] : []),
-        ...report.sections.confirmed_facts
+        ...cleanedReport.sections.confirmed_facts
       ],
       assumptions: [
         summary.matchMode === "complex"
           ? "전세가율은 입력 보증금과 입력 단지 매매 실거래 표본 평균을 기준으로 계산했습니다."
           : "전세가율은 입력 보증금과 지역 매매 실거래 참고 표본 평균을 기준으로 계산했습니다.",
-        ...report.sections.assumptions
+        ...cleanedReport.sections.assumptions
       ]
     }
   } satisfies AnalyzeResponse;
