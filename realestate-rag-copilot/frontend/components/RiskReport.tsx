@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
+  CircleDashed,
   Download,
   FileText,
   Gauge,
@@ -12,6 +13,7 @@ import {
   NotebookTabs,
   Scale,
   ShieldAlert,
+  XCircle,
   TrendingUp
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -162,6 +164,47 @@ function SeverityPill({ severity }: { severity: string }) {
       : "bg-brass/10 text-brass";
 
   return <span className={`rounded-md px-2.5 py-1 text-xs font-black ${className}`}>{severity}</span>;
+}
+
+function DataStatusStrip({ report }: { report: AnalyzeResponse }) {
+  const statuses = report.data_statuses ?? [];
+  if (statuses.length === 0) return null;
+
+  const tone = {
+    success: "border-moss/25 bg-moss/10 text-moss",
+    fallback: "border-brass/30 bg-brass/10 text-brass",
+    missing: "border-ink/10 bg-paper text-ink/60",
+    failed: "border-clay/30 bg-clay/10 text-clay"
+  } as const;
+  const icons = {
+    success: CheckCircle2,
+    fallback: CircleDashed,
+    missing: CircleDashed,
+    failed: XCircle
+  };
+
+  return (
+    <section className="dashboard-panel p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-black text-ink">데이터 조회 상태</h2>
+        <span className="text-xs font-bold text-ink/45">API/fallback trace</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-4">
+        {statuses.map((item) => {
+          const Icon = icons[item.status];
+          return (
+            <div key={item.id} className={`rounded-md border px-3 py-3 ${tone[item.status]}`}>
+              <div className="mb-1 flex items-center gap-2">
+                <Icon aria-hidden="true" size={15} />
+                <strong className="text-xs">{item.label}</strong>
+              </div>
+              <p className="text-xs leading-5 text-ink/65">{item.detail}</p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 type AgentReport = {
@@ -424,6 +467,8 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           </button>
         </div>
       </section>
+
+      <DataStatusStrip report={report} />
 
       {layout === "agents" ? (
         <AgentReportPanel reports={agentReports} />

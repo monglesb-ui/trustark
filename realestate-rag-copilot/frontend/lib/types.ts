@@ -58,8 +58,16 @@ export type AnalysisSections = {
   unverified_items: string[];
 };
 
+export type DataSourceStatus = {
+  id: string;
+  label: string;
+  status: "success" | "fallback" | "missing" | "failed";
+  detail: string;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
+  data_statuses?: DataSourceStatus[];
   risk_level: string;
   risk_score: number;
   summary: string;

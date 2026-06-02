@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildMockAnalysis } from "@/lib/mock-analysis";
 import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types";
-import type { AnalyzeRequest, AnalyzeResponse, MapMarker } from "@/lib/types";
+import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus, MapMarker } from "@/lib/types";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, lookupLegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -34,11 +34,38 @@ function updateTargetMarker(markers: MapMarker[], lat: number, lng: number, amou
   ];
 }
 
+function upsertStatus(statuses: DataSourceStatus[] | undefined, status: DataSourceStatus) {
+  const current = statuses ?? [];
+  const existingIndex = current.findIndex((item) => item.id === status.id);
+  if (existingIndex < 0) return [...current, status];
+  return current.map((item, index) => (index === existingIndex ? status : item));
+}
+
+function withStatus(report: AnalyzeResponse, status: DataSourceStatus) {
+  return {
+    ...report,
+    data_statuses: upsertStatus(report.data_statuses, status)
+  } satisfies AnalyzeResponse;
+}
+
 function applyGeocoding(report: AnalyzeResponse, geocoded: Awaited<ReturnType<typeof geocodeAddress>>, payload: AnalyzeRequest) {
-  if (!geocoded) return report;
+  if (!geocoded) {
+    return withStatus(report, {
+      id: "geocoding",
+      label: "VWorld 지오코딩",
+      status: "fallback",
+      detail: "좌표 변환 실패 또는 키 없음 · mock 좌표 사용"
+    });
+  }
 
   return {
     ...report,
+    data_statuses: upsertStatus(report.data_statuses, {
+      id: "geocoding",
+      label: "VWorld 지오코딩",
+      status: "success",
+      detail: `${geocoded.addressType === "parcel" ? "지번" : "도로명"} 좌표 변환 성공`
+    }),
     location: {
       lat: geocoded.lat,
       lng: geocoded.lng,
@@ -73,6 +100,12 @@ function applyLegalDongCode(
   if (!legalDong) {
     return {
       ...report,
+      data_statuses: upsertStatus(report.data_statuses, {
+        id: "legal-dong",
+        label: "법정동코드",
+        status: "missing",
+        detail: `${query} 조회 결과 없음`
+      }),
       sections: {
         ...report.sections,
         unverified_items: [`법정동코드 조회 결과 없음: ${query}`, ...report.sections.unverified_items]
@@ -82,6 +115,12 @@ function applyLegalDongCode(
 
   return {
     ...report,
+    data_statuses: upsertStatus(report.data_statuses, {
+      id: "legal-dong",
+      label: "법정동코드",
+      status: "success",
+      detail: `${legalDong.regionCode} · LAWD_CD ${legalDong.lawdCode}`
+    }),
     evidence: [
       {
         title: "법정동코드 정규화",
@@ -236,10 +275,34 @@ export async function POST(request: Request) {
     const rentSummary = legalDong
       ? await lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type)
       : null;
-    const rentReport = rentSummary ? applyRentMarketSummary(codedReport, rentSummary, payload) : codedReport;
+    const rentReport = rentSummary
+      ? withStatus(applyRentMarketSummary(codedReport, rentSummary, payload), {
+          id: "rent-market",
+          label: "전월세 실거래가",
+          status: "success",
+          detail: `표본 ${rentSummary.sampleSize}건 · 평균 보증금 ${rentSummary.averageDeposit ? rentSummary.averageDeposit.toLocaleString("ko-KR") : "-"}원`
+        })
+      : withStatus(codedReport, {
+          id: "rent-market",
+          label: "전월세 실거래가",
+          status: legalDong ? "missing" : "fallback",
+          detail: legalDong ? "조회 표본 없음 · mock 표본 유지" : "법정동코드 없음 · mock 표본 유지"
+        });
     const saleSummary = legalDong ? await lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type) : null;
 
-    const marketReport = saleSummary ? applySaleMarketSummary(rentReport, saleSummary, payload) : rentReport;
+    const marketReport = saleSummary
+      ? withStatus(applySaleMarketSummary(rentReport, saleSummary, payload), {
+          id: "sale-market",
+          label: "매매 실거래가",
+          status: "success",
+          detail: `표본 ${saleSummary.sampleSize}건 · 평균 매매가 ${saleSummary.averageSalePrice ? saleSummary.averageSalePrice.toLocaleString("ko-KR") : "-"}원`
+        })
+      : withStatus(rentReport, {
+          id: "sale-market",
+          label: "매매 실거래가",
+          status: legalDong ? "missing" : "fallback",
+          detail: legalDong ? "조회 표본 없음 · 전세가율 미확정" : "법정동코드 없음 · 전세가율 미확정"
+        });
 
     return NextResponse.json(applyConservativeRiskFloor(marketReport, payload));
   } catch (error) {
@@ -248,9 +311,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message }, { status: 502 });
     }
 
-    return NextResponse.json(applyConservativeRiskFloor({
+    return NextResponse.json(applyConservativeRiskFloor(withStatus({
       ...mockReport,
       warnings: ["VWorld 지오코딩에 실패해 mock 좌표로 분석했습니다.", ...mockReport.warnings]
-    }, payload));
+    }, {
+      id: "geocoding",
+      label: "VWorld 지오코딩",
+      status: "failed",
+      detail: "예외 발생 · mock 좌표 사용"
+    }), payload));
   }
 }
