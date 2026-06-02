@@ -306,9 +306,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-    const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
-
   try {
+    const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
     const geocode = await geocodeAddress(payload.address);
     const geocodedReport = applyGeocoding(mockReport, geocode, payload);
     const legalDongQuery = geocode.result?.legalDong ?? extractLegalDongQuery(payload.address);
@@ -348,19 +347,21 @@ export async function POST(request: Request) {
 
     return NextResponse.json(applyConservativeRiskFloor(marketReport, payload));
   } catch (error) {
+    const fallbackReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
+    const message = error instanceof Error ? error.message : "분석 처리 중 서버 오류가 발생했습니다.";
+
     if (!serverEnv.useMockFallback) {
-      const message = error instanceof Error ? error.message : "주소 지오코딩에 실패했습니다.";
       return NextResponse.json({ message }, { status: 502 });
     }
 
     return NextResponse.json(applyConservativeRiskFloor(withStatus({
-      ...mockReport,
-      warnings: ["네이버 지오코딩에 실패해 대체 좌표로 분석했습니다.", ...mockReport.warnings]
+      ...fallbackReport,
+      warnings: [`분석 API 일부 단계에서 오류가 발생해 대체 분석으로 전환했습니다: ${message}`, ...fallbackReport.warnings]
     }, {
-      id: "geocoding",
-      label: "지도 지오코딩",
+      id: "api-runtime",
+      label: "분석 API 런타임",
       status: "failed",
-      detail: "예외 발생 · 대체 좌표 사용"
+      detail: message.slice(0, 120)
     }), payload));
   }
 }
