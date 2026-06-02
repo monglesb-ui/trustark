@@ -5,17 +5,17 @@ import type { LegalDongCode } from "./legal-dong";
 const BUILDING_REGISTER_TITLE_ENDPOINT = "https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo";
 
 type BuildingRegisterItem = {
-  platPlc?: string;
-  newPlatPlc?: string;
-  bldNm?: string;
-  mainPurpsCdNm?: string;
-  etcPurps?: string;
-  hhldCnt?: string;
-  fmlyCnt?: string;
-  grndFlrCnt?: string;
-  ugrndFlrCnt?: string;
-  useAprDay?: string;
-  violBldYn?: string;
+  platPlc?: unknown;
+  newPlatPlc?: unknown;
+  bldNm?: unknown;
+  mainPurpsCdNm?: unknown;
+  etcPurps?: unknown;
+  hhldCnt?: unknown;
+  fmlyCnt?: unknown;
+  grndFlrCnt?: unknown;
+  ugrndFlrCnt?: unknown;
+  useAprDay?: unknown;
+  violBldYn?: unknown;
 };
 
 export type BuildingRegisterSummary = {
@@ -66,9 +66,17 @@ function getServiceKeys() {
   return keys;
 }
 
-function parseNumber(value?: string | null) {
-  if (!value) return null;
-  const parsed = Number(value.replace(/[^\d.-]/g, ""));
+function textValue(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function parseNumber(value: unknown) {
+  const text = textValue(value);
+  if (!text) return null;
+  const parsed = Number(text.replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -101,7 +109,7 @@ function collectItems(value: unknown): BuildingRegisterItem[] {
 
   const record = value as Record<string, unknown>;
   const rows: BuildingRegisterItem[] = [];
-  if (typeof record.platPlc === "string" || typeof record.newPlatPlc === "string") {
+  if (textValue(record.platPlc) || textValue(record.newPlatPlc)) {
     rows.push(record as BuildingRegisterItem);
   }
 
@@ -112,28 +120,30 @@ function collectItems(value: unknown): BuildingRegisterItem[] {
   return rows;
 }
 
-function normalizeUseApprovalDate(value?: string) {
-  if (!value || value.length !== 8) return value;
-  return `${value.slice(0, 4)}.${value.slice(4, 6)}.${value.slice(6, 8)}`;
+function normalizeUseApprovalDate(value: unknown) {
+  const text = textValue(value);
+  if (!text || text.length !== 8) return text;
+  return `${text.slice(0, 4)}.${text.slice(4, 6)}.${text.slice(6, 8)}`;
 }
 
 function toSummary(items: BuildingRegisterItem[]): BuildingRegisterSummary | null {
   const item = items[0];
   if (!item) return null;
+  const violationValue = textValue(item.violBldYn);
 
   return {
     source: BUILDING_REGISTER_TITLE_ENDPOINT,
-    address: item.platPlc ?? item.newPlatPlc ?? "건축물대장 주소 미확인",
-    roadAddress: item.newPlatPlc,
-    buildingName: item.bldNm,
-    mainPurpose: item.mainPurpsCdNm,
-    etcPurpose: item.etcPurps,
+    address: textValue(item.platPlc) ?? textValue(item.newPlatPlc) ?? "건축물대장 주소 미확인",
+    roadAddress: textValue(item.newPlatPlc),
+    buildingName: textValue(item.bldNm),
+    mainPurpose: textValue(item.mainPurpsCdNm),
+    etcPurpose: textValue(item.etcPurps),
     householdCount: parseNumber(item.hhldCnt),
     familyCount: parseNumber(item.fmlyCnt),
     groundFloors: parseNumber(item.grndFlrCnt),
     undergroundFloors: parseNumber(item.ugrndFlrCnt),
     useApprovalDate: normalizeUseApprovalDate(item.useAprDay),
-    violationBuilding: item.violBldYn ? item.violBldYn === "1" || item.violBldYn === "Y" : null,
+    violationBuilding: violationValue ? violationValue === "1" || violationValue.toUpperCase() === "Y" : null,
     sampleSize: items.length
   };
 }
