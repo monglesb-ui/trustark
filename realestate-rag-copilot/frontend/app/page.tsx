@@ -12,7 +12,8 @@ import {
   Moon,
   ShieldCheck,
   Sparkles,
-  Sun
+  Sun,
+  FileCheck2
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnalysisForm } from "@/components/AnalysisForm";
@@ -33,10 +34,15 @@ const agentSteps: AgentStep[] = [
   {
     name: "Market Data Agent",
     shortName: "시세 표본",
-    role: "실거래가 API와 대체 표본을 비교해 입력 보증금의 위치를 계산합니다.",
-    preview: "전월세 표본 · 매매 표본 · 입력 보증금 차이율 계산",
+    role: "실거래가 API에서 입력 단지의 전월세·매매 표본을 우선 조회합니다.",
+    preview: "단지명 매칭 · 전월세 표본 · 매매 표본 · 전세가율 계산",
     Icon: Database,
-    logs: ["주소 기준 지역코드와 좌표 상태 확인", "전월세 실거래가 API 또는 대체 표본 로드", "입력 보증금과 평균 보증금 차이율 계산"]
+    logs: [
+      "입력 주소에서 단지명 후보와 주택 유형을 확인합니다.",
+      "법정동코드와 계약월 기준으로 실거래가 API 호출을 준비합니다.",
+      "전월세·매매 표본에서 입력 단지명과 매칭되는 거래를 우선 선별합니다.",
+      "입력 보증금, 평균 매매가, 전세가율을 계산해 Market Context로 전달합니다."
+    ]
   },
   {
     name: "RAG Evidence Agent",
@@ -44,23 +50,35 @@ const agentSteps: AgentStep[] = [
     role: "전세 위험 체크리스트에서 관련 근거를 검색합니다.",
     preview: "전세가율, 등기부등본, 보증보험 체크리스트 매칭",
     Icon: FileSearch,
-    logs: ["질문에서 전세 계약 전 확인 의도 추출", "rag_docs/jeonse_risk_checklist.md 검색", "계약 전 필수 확인 근거 2건 선택"]
+    logs: [
+      "사용자 질문에서 계약 전 확인 의도와 리스크 키워드를 추출합니다.",
+      "RAG 체크리스트에서 등기부등본, 선순위 권리, 보증보험 근거를 검색합니다.",
+      "실제 데이터로 확정된 항목과 아직 확인되지 않은 항목을 분리합니다."
+    ]
   },
   {
     name: "Location Context Agent",
     shortName: "위치 맥락",
-    role: "대상지와 주변 표본 marker를 구성합니다.",
-    preview: "대상 marker · 주변 marker · 좌표 조회 상태 구성",
+    role: "대상 주소와 주변 표본 marker를 지도 맥락으로 구성합니다.",
+    preview: "네이버 지오코딩 · 대상 marker · 주변 marker",
     Icon: MapPinned,
-    logs: ["대상 주소를 VWorld/Naver 지도 좌표 흐름으로 정규화", "주변 거래 표본을 지도 marker로 변환", "좌표 조회 실패 시 대체 좌표 fallback 표시"]
+    logs: [
+      "네이버 지도 지오코딩으로 입력 주소의 좌표를 확인합니다.",
+      "대상 좌표와 실거래 표본 marker를 같은 지도 맥락에 배치합니다.",
+      "좌표 또는 표본 부족이 있으면 리포트의 데이터 상태에 fallback 근거를 남깁니다."
+    ]
   },
   {
     name: "Risk Scoring Agent",
-    shortName: "안전 검증",
-    role: "위험 점수와 미확인 항목을 분리합니다.",
-    preview: "위험 점수 78 · 권리관계 미확인 · 전문가 검토 권장",
+    shortName: "위험 산정",
+    role: "전세가율, 표본 신뢰도, 권리관계 미확인을 분리해 점수를 산정합니다.",
+    preview: "전세가율 기준 점수 · 권리관계 보수 보정",
     Icon: ShieldCheck,
-    logs: ["전세가율 위험 규칙 적용", "표본 부족 리스크를 별도 신호로 분리", "단정 표현을 참고 분석 문구로 완화"]
+    logs: [
+      "실거래 매매가 기준 전세가율을 위험 점수의 주 기준으로 적용합니다.",
+      "가격 기준 위험과 등기부등본·선순위 권리 미확인을 별도 신호로 분리합니다.",
+      "mock 또는 fallback에서 남은 오래된 위험 문구를 최신 API 결과와 동기화합니다."
+    ]
   },
   {
     name: "Report Agent",
@@ -68,7 +86,23 @@ const agentSteps: AgentStep[] = [
     role: "대시보드와 문서형 리포트 문장을 조립합니다.",
     preview: "핵심 위험 신호, 다음 액션, 주의 문구 생성",
     Icon: Sparkles,
-    logs: ["확인된 사실과 미확인 항목 정리", "다음 확인 액션 4개 작성", "다운로드 가능한 문서형 리포트 구성"]
+    logs: [
+      "확인된 사실, 가정, 미확인 항목을 리포트 섹션으로 조립합니다.",
+      "대시보드형, 문서형, Agent 기록 탭에 전달할 결과를 정리합니다.",
+      "다운로드 가능한 문서형 리포트 구조를 생성합니다."
+    ]
+  },
+  {
+    name: "Validation Agent",
+    shortName: "최종 검증",
+    role: "단정 표현과 데이터 불일치를 점검해 안전한 최종 리포트로 정리합니다.",
+    preview: "단정 표현 차단 · 미확인 항목 유지 · 최종 리포트 검수",
+    Icon: FileCheck2,
+    logs: [
+      "계약 가능/안전 같은 단정 표현이 남아 있는지 점검합니다.",
+      "데이터 조회 상태와 위험 문구가 서로 충돌하지 않는지 확인합니다.",
+      "최종 리포트에 전문가 검토와 보증보험 확인 문구를 유지합니다."
+    ]
   }
 ];
 
@@ -80,7 +114,7 @@ const pipelineItems: Array<[string, string, LucideIcon]> = agentSteps.slice(0, 4
 
 type AnalysisStage = "idle" | "analyzing" | "report";
 
-const stepDelayMs = 820;
+const logDelayMs = 380;
 
 function dataMode(statuses: DataSourceStatus[] | undefined) {
   const items = statuses ?? [];
@@ -127,15 +161,25 @@ function getInitialDarkMode() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-function AnalyzingPanel({ activeStep }: { activeStep: number }) {
-  const progress = Math.min(100, Math.round(((activeStep + 1) / agentSteps.length) * 100));
+function logsBeforeStep(stepIndex: number) {
+  return agentSteps.slice(0, stepIndex).reduce((sum, step) => sum + step.logs.length, 0);
+}
+
+function activeStepFromLogCount(logCount: number) {
+  let cursor = 0;
+  for (let index = 0; index < agentSteps.length; index += 1) {
+    cursor += agentSteps[index].logs.length;
+    if (logCount <= cursor) return index;
+  }
+  return agentSteps.length - 1;
+}
+
+function AnalyzingPanel({ activeStep, visibleLogCount }: { activeStep: number; visibleLogCount: number }) {
+  const totalLogCount = agentSteps.reduce((sum, step) => sum + step.logs.length, 0);
+  const progress = Math.min(100, Math.round((visibleLogCount / totalLogCount) * 100));
   const currentAgent = agentSteps[activeStep] ?? agentSteps[agentSteps.length - 1];
   const CurrentIcon = currentAgent.Icon;
-  const visibleLogs = agentSteps.flatMap((step, stepIndex) =>
-    step.logs
-      .filter((_, logIndex) => stepIndex < activeStep || (stepIndex === activeStep && logIndex <= Math.min(1, activeStep)))
-      .map((message) => ({ agent: step.name, message }))
-  );
+  const visibleLogs = agentSteps.flatMap((step) => step.logs.map((message) => ({ agent: step.name, message }))).slice(0, visibleLogCount);
   const latestLog = visibleLogs[visibleLogs.length - 1];
 
   return (
@@ -180,6 +224,22 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-moss transition-all duration-700" style={{ width: `${progress}%` }} />
         </div>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          {agentSteps.map((step, index) => {
+            const done = visibleLogCount >= logsBeforeStep(index + 1);
+            const active = index === activeStep && !done;
+            const NodeIcon = done ? CheckCircle2 : step.Icon;
+
+            return (
+              <div key={`node-${step.name}`} className={`rounded-md border px-3 py-2 ${active ? "border-moss bg-moss/20" : "border-white/15 bg-white/10"}`}>
+                <div className="flex items-center gap-2">
+                  <NodeIcon aria-hidden="true" size={14} className={active ? "text-mint" : "text-white/70"} />
+                  <span className="truncate text-[0.68rem] font-black text-white/75">{step.shortName}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
@@ -190,10 +250,13 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
           </div>
           <div className="grid gap-3">
             {agentSteps.map((step, index) => {
-          const done = index < activeStep;
-          const active = index === activeStep;
+          const stepStart = logsBeforeStep(index);
+          const stepEnd = logsBeforeStep(index + 1);
+          const done = visibleLogCount >= stepEnd;
+          const active = index === activeStep && !done;
               const waiting = index > activeStep;
               const StepIcon = done ? CheckCircle2 : active ? LoaderCircle : step.Icon;
+              const stepProgress = Math.max(0, Math.min(step.logs.length, visibleLogCount - stepStart));
 
           return (
             <div
@@ -219,6 +282,16 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
                       </div>
                       <p className="mt-1 text-xs leading-5 text-ink/62">{step.role}</p>
                       {!waiting ? <p className="mt-3 rounded-md bg-white/80 px-3 py-2 text-xs font-bold text-ink/68">{step.preview}</p> : null}
+                      {!waiting ? (
+                        <div className="mt-3 flex gap-1">
+                          {step.logs.map((log) => (
+                            <span
+                              key={log}
+                              className={`h-1.5 flex-1 rounded-full ${step.logs.indexOf(log) < stepProgress ? "bg-moss" : "bg-ink/10"}`}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
             </div>
@@ -234,7 +307,7 @@ function AnalyzingPanel({ activeStep }: { activeStep: number }) {
           </div>
           <div className="grid max-h-[31rem] gap-2 overflow-hidden">
             {visibleLogs.map((item, index) => (
-              <div key={`${item.agent}-${item.message}`} className="rounded-md border border-ink/10 bg-white p-3 text-sm shadow-sm">
+              <div key={`${item.agent}-${item.message}`} className="rounded-md border border-ink/10 bg-white p-3 text-sm shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-300">
                 <div className="mb-1 flex items-center gap-2 text-[0.68rem] font-black uppercase text-moss">
                   <span>{String(index + 1).padStart(2, "0")}</span>
                   <span>{item.agent}</span>
@@ -255,6 +328,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AnalysisStage>("idle");
   const [activeStep, setActiveStep] = useState(0);
+  const [visibleLogCount, setVisibleLogCount] = useState(0);
   const [darkMode, setDarkMode] = useState(getInitialDarkMode);
   const sidebarStatus = statusSummary(report);
 
@@ -268,14 +342,19 @@ export default function Home() {
     setReport(null);
     setStage("analyzing");
     setActiveStep(0);
+    setVisibleLogCount(0);
 
     try {
       const analysisPromise = analyzeContract(payload);
-      for (let index = 0; index < agentSteps.length; index += 1) {
-        setActiveStep(index);
-        await wait(stepDelayMs);
+      const totalLogCount = agentSteps.reduce((sum, step) => sum + step.logs.length, 0);
+      for (let count = 1; count <= totalLogCount; count += 1) {
+        setVisibleLogCount(count);
+        setActiveStep(activeStepFromLogCount(count));
+        await wait(logDelayMs);
       }
       const result = await analysisPromise;
+      setVisibleLogCount(totalLogCount);
+      setActiveStep(agentSteps.length - 1);
       setReport(result);
       setStage("report");
     } catch (err) {
@@ -362,7 +441,7 @@ export default function Home() {
           ) : null}
           <div aria-live="polite">
             {stage === "analyzing" ? (
-              <AnalyzingPanel activeStep={activeStep} />
+              <AnalyzingPanel activeStep={activeStep} visibleLogCount={visibleLogCount} />
             ) : report ? (
               <RiskReport report={report} />
             ) : (
