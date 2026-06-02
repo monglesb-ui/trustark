@@ -23,11 +23,11 @@ async function main() {
   await page.getByRole("heading", { name: "RAG 근거 문서" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "다음 확인 액션" }).waitFor({ timeout: 15000 });
   await page.getByText("핵심 근거").waitFor({ timeout: 15000 });
-  await page.getByRole("button", { name: "Agent 기록" }).click();
-  await page.getByRole("heading", { name: "Agent 분석 기록" }).waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Agent 검토" }).click();
+  await page.getByRole("heading", { name: "Agent 검토 노트" }).waitFor({ timeout: 15000 });
   await page.getByRole("button", { name: /RAG Evidence Agent/ }).click();
-  await page.getByRole("heading", { name: "RAG Evidence Agent 보고서" }).waitFor({ timeout: 15000 });
-  await page.getByText("종합 보고서에 전달한 내용").waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: "RAG Evidence Agent 검토 노트" }).waitFor({ timeout: 15000 });
+  await page.getByText("다음 확인").waitFor({ timeout: 15000 });
 
   await page.getByRole("button", { name: "문서형", exact: true }).click();
   await page.getByRole("heading", { name: "전세 계약 사전 위험 검토 리포트" }).waitFor({ timeout: 15000 });

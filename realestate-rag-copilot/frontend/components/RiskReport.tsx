@@ -263,9 +263,11 @@ type AgentReport = {
   name: string;
   status: string;
   purpose: string;
-  tasks: string[];
-  observations: string[];
-  delivered: string[];
+  judgment: string;
+  evidence: string[];
+  confidence: "높음" | "중간" | "낮음";
+  whyItMatters: string;
+  nextCheck: string[];
   traces: AgentTrace[];
 };
 
@@ -290,14 +292,20 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
   const rentStatus = statusById(report, "rent-market");
   const saleStatus = statusById(report, "sale-market");
   const searchStatus = statusById(report, "search-context");
+  const marketConfidence = rentStatus?.status === "success" && saleStatus?.status === "success" ? "높음" : "중간";
+  const locationConfidence = geocodingStatus?.status === "success" ? "높음" : "낮음";
+  const searchConfidence = searchStatus?.status === "success" ? "중간" : "낮음";
 
   return [
     {
       name: "Market Data Agent",
       status: "완료",
       purpose: "입력된 단지의 전월세·매매 실거래가를 우선 조회하고, 없을 때만 지역 참고 표본으로 시세 근거를 만들었습니다.",
-      tasks: ["입력 보증금 확인", "주소에서 단지명 후보 추출", "단지명 매칭 실거래가 우선 조회", "최근 전세·매매 가격과 전세가율 산출"],
-      observations: [
+      judgment:
+        report.market_comparison.jeonse_ratio && report.market_comparison.jeonse_ratio >= 80
+          ? "입력 보증금이 매매 실거래가 대비 높은 전세가율 구간에 있어 가격 리스크를 우선 확인해야 합니다."
+          : "입력 보증금은 현재 실거래 표본과 비교해 추가 검토가 필요한 가격 구간입니다.",
+      evidence: [
         `전월세 실거래가: ${statusText(rentStatus)}`,
         `매매 실거래가: ${statusText(saleStatus)}`,
         `입력 보증금은 ${inputDeposit}입니다.`,
@@ -305,41 +313,47 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
         `전월세 평균 보증금은 ${nearbyDeposit}입니다.`,
         `차이율은 ${report.market_comparison.difference_rate}%이고 표본 수는 ${report.market_comparison.sample_size}건입니다.`
       ],
-      delivered: ["latest_rent_deposit", "latest_sale_price", "jeonse_ratio", "market_comparison"],
+      confidence: marketConfidence,
+      whyItMatters: "전세 계약에서는 보증금이 매매가에 가까워질수록 보증금 회수 여력이 낮아질 수 있어 가격 검토가 가장 먼저 필요합니다.",
+      nextCheck: ["동일 단지·동일 면적·최근 거래인지 확인", "등기부등본상 근저당권과 입력 보증금을 함께 비교", "전세보증금 반환보증 가능 여부 확인"],
       traces: tracesForAgent(report, "Market Data Agent")
     },
     {
       name: "RAG Evidence Agent",
       status: "완료",
       purpose: "전세 계약 전 확인해야 할 체크리스트 근거를 검색해 리포트 문장의 출처를 보강했습니다.",
-      tasks: ["사용자 질문에서 전세 계약 전 확인 의도 추출", "전세 리스크 체크리스트 문서 검색", "등기부등본·보증보험·선순위 권리 관련 근거 선별"],
-      observations: [
+      judgment: "가격만으로 계약 안전성을 단정할 수 없으므로 등기부등본, 선순위 권리, 보증보험 가능 여부를 별도 확인해야 합니다.",
+      evidence: [
         `RAG 근거 ${ragEvidenceCount || report.evidence.length}건을 리포트에 연결했습니다.`,
         "실제 등기부등본 원문은 제공되지 않아 미확인 항목으로 유지했습니다.",
         "보증보험 가입 가능 여부도 현재 데이터에서는 확정하지 않았습니다."
       ],
-      delivered: ["RAG 근거 문서", "미확인 항목 후보", "다음 확인 액션 후보"],
+      confidence: "중간",
+      whyItMatters: "전세 사고는 가격보다 권리관계에서 발생하는 경우가 많아, 체크리스트 기반 미확인 항목을 남겨두는 것이 중요합니다.",
+      nextCheck: ["계약 전 등기부등본 갑구·을구 확인", "선순위 임차인과 확정일자 현황 확인", "보증보험 가입 가능 조건 확인"],
       traces: tracesForAgent(report, "RAG Evidence Agent")
     },
     {
       name: "Search Context Agent",
       status: "완료",
       purpose: "네이버 검색 API로 대상 주소와 단지 주변의 공개 웹·뉴스 맥락을 수집해 공식 실거래가와 분리된 참고 근거로 붙였습니다.",
-      tasks: ["주소·주택유형 기반 웹 검색 실행", "부동산 관련 뉴스 검색 실행", "검색 스니펫을 외부 참고 근거로 변환", "공식 API가 아닌 보조 맥락임을 표시"],
-      observations: [
+      judgment: searchStatus?.status === "success" ? "외부 검색 후보를 확보했지만 공식 가격 근거가 아니므로 참고 맥락으로만 사용해야 합니다." : "외부 검색 맥락이 충분히 확보되지 않아 공식 API와 RAG 체크리스트 중심으로 판단해야 합니다.",
+      evidence: [
         `외부 검색 맥락: ${statusText(searchStatus)}`,
         `검색 tool trace는 ${tracesForAgent(report, "Search Context Agent").length}건입니다.`,
         "네이버 검색 결과는 실거래가를 대체하지 않고 최신 이슈·외부 문서 후보를 찾는 데 사용됩니다."
       ],
-      delivered: ["external_search_context", "source_candidates", "freshness caveat"],
+      confidence: searchConfidence,
+      whyItMatters: "공식 API에 없는 단지 이슈, 지역 이슈, 최근 뉴스 후보를 빠르게 발견할 수 있지만 원문 확인 전에는 사실로 확정하면 안 됩니다.",
+      nextCheck: ["검색 결과 원문 열람", "단지명·주소가 정확히 일치하는 문서만 채택", "가격 정보는 실거래가 API와 별도 비교"],
       traces: tracesForAgent(report, "Search Context Agent")
     },
     {
       name: "Location Context Agent",
       status: "완료",
       purpose: "대상 주소와 주변 거래 표본의 위치 맥락을 구성해 비교 표본이 어디에 놓이는지 보여줬습니다.",
-      tasks: ["주소 정규화", "네이버/VWorld 지오코딩 상태 확인", "법정동코드 조회 상태 확인", "대상 marker와 주변 marker 구성"],
-      observations: [
+      judgment: geocodingStatus?.status === "success" ? "대상 주소 좌표를 확보해 주변 표본과 위치 비교가 가능합니다." : "주소 좌표 신뢰도가 낮아 지도와 주변 표본 해석에 주의가 필요합니다.",
+      evidence: [
         `지도 지오코딩: ${statusText(geocodingStatus)}`,
         `법정동코드: ${statusText(legalDongStatus)}`,
         `대상 좌표는 ${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}입니다.`,
@@ -348,42 +362,50 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
           ? "대상 좌표는 지도 지오코딩 결과를 사용했습니다."
           : "대상 좌표는 대체 좌표를 사용했으므로 정확한 위치로 단정하지 않습니다."
       ],
-      delivered: ["target marker", "nearby markers", "location caveat"],
+      confidence: locationConfidence,
+      whyItMatters: "같은 법정동 안에서도 역세권, 학교, 도로, 단지 위치에 따라 가격 표본의 의미가 달라질 수 있습니다.",
+      nextCheck: ["지도상 대상 위치와 실제 주소 일치 확인", "주변 표본이 동일 생활권인지 확인", "필요하면 반경·면적 기준으로 표본 재조회"],
       traces: tracesForAgent(report, "Location Context Agent")
     },
     {
       name: "Risk Scoring Agent",
       status: "완료",
       purpose: "시세 차이, 표본 수, RAG 근거, 미확인 권리관계를 종합해 위험 점수와 위험 신호를 만들었습니다.",
-      tasks: ["보증금 차이율 규칙 적용", "표본 부족에 따른 불확실성 반영", "권리관계·보증보험 미확인 상태를 리스크 신호와 분리"],
-      observations: [
+      judgment: `${report.risk_level} 판정입니다. 이 점수는 계약 가능 여부가 아니라 추가 확인 필요도를 나타냅니다.`,
+      evidence: [
         `위험 점수는 ${report.risk_score}점입니다.`,
         `위험도는 ${report.risk_level}입니다.`,
         `구조화된 위험 신호는 ${(report.risk_signals ?? []).length || 1}건입니다.`
       ],
-      delivered: ["risk_score", "risk_level", "risk_signals"],
+      confidence: report.market_comparison.sample_size >= 10 ? "중간" : "낮음",
+      whyItMatters: "위험 점수는 사용자가 어떤 항목부터 확인해야 하는지 우선순위를 잡기 위한 신호입니다.",
+      nextCheck: report.next_actions.slice(0, 3),
       traces: tracesForAgent(report, "Risk Scoring Agent")
     },
     {
       name: "Report Agent",
       status: "완료",
       purpose: "각 Agent의 결과를 사용자에게 읽기 쉬운 종합 리포트와 문서형 리포트 구조로 조립했습니다.",
-      tasks: ["종합 위험도 요약 생성", "시세 비교·RAG 근거·다음 액션 섹션 구성", "문서형 다운로드용 HTML 리포트 구성"],
-      observations: ["대시보드형 리포트가 생성되었습니다.", "문서형 리포트 전환이 가능합니다.", "문서 다운로드용 HTML을 생성할 수 있습니다."],
-      delivered: ["summary", "sections", "next_actions", "downloadable document"],
+      judgment: "사용자에게 필요한 판단, 근거, 다음 행동을 대시보드형과 문서형 리포트로 정리했습니다.",
+      evidence: ["대시보드형 리포트가 생성되었습니다.", "문서형 리포트 전환이 가능합니다.", "문서 다운로드용 HTML을 생성할 수 있습니다."],
+      confidence: "중간",
+      whyItMatters: "분석 결과는 한 번에 읽히는 요약과 저장 가능한 문서가 함께 있어야 실제 의사결정에 쓰일 수 있습니다.",
+      nextCheck: ["문서형 리포트 다운로드", "미확인 항목을 계약 전 체크리스트로 사용", "전문가 검토 시 리포트 공유"],
       traces: tracesForAgent(report, "Report Agent")
     },
     {
       name: "Validation Agent",
       status: "완료",
       purpose: "최종 리포트가 계약 가능 여부를 단정하지 않도록 안전 문구와 미확인 항목을 검토했습니다.",
-      tasks: ["단정 표현 차단", "전문가 검토 필요 문구 확인", "확인된 사실·가정·미확인 항목 분리 확인"],
-      observations: [
+      judgment: "현재 결과는 참고 분석이며, 계약 안전 여부를 확정하지 않습니다.",
+      evidence: [
         "계약 가능/안전 같은 단정 표현을 사용하지 않았습니다.",
         `주의 문구 ${report.warnings.length}건을 유지했습니다.`,
         `미확인 항목 ${report.sections.unverified_items.length}건을 별도 표시했습니다.`
       ],
-      delivered: ["warnings", "validated report", "safety caveats"],
+      confidence: "높음",
+      whyItMatters: "부동산 계약 리스크 분석은 법률·권리관계 확인을 대체할 수 없기 때문에 단정 표현을 막는 안전장치가 필요합니다.",
+      nextCheck: ["등기부등본 원문 확인", "공인중개사·법률 전문가 검토", "보증보험 가입 가능 여부 최종 확인"],
       traces: tracesForAgent(report, "Validation Agent")
     }
   ];
@@ -391,16 +413,22 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
 
 function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
   const [openAgent, setOpenAgent] = useState(reports[0]?.name ?? "");
+  const [showTrace, setShowTrace] = useState(false);
   const selected = reports.find((item) => item.name === openAgent) ?? reports[0];
+  const confidenceTone = {
+    높음: "border-moss/25 bg-moss/10 text-moss",
+    중간: "border-brass/35 bg-brass/10 text-brass",
+    낮음: "border-clay/30 bg-clay/10 text-clay"
+  } as const;
 
   return (
     <section className="dashboard-panel p-5 sm:p-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Trust Ark Agent Workpapers</p>
-          <h2 className="mt-2 text-2xl font-black text-ink">Agent 분석 기록</h2>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Trust Ark Agent Review Notes</p>
+          <h2 className="mt-2 text-2xl font-black text-ink">Agent 검토 노트</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
-            종합 리포트 뒤에서 각 Agent가 어떤 입력을 보고 어떤 결과물을 넘겼는지 확인할 수 있습니다.
+            각 Agent가 어떤 판단을 했고, 그 판단이 사용자에게 왜 중요한지와 다음 확인 항목을 정리했습니다.
           </p>
         </div>
         <span className="rounded-md border border-moss/20 bg-moss/10 px-3 py-2 text-xs font-black text-moss">
@@ -414,14 +442,17 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
             <button
               key={item.name}
               type="button"
-              onClick={() => setOpenAgent(item.name)}
+              onClick={() => {
+                setOpenAgent(item.name);
+                setShowTrace(false);
+              }}
               className={`flex min-h-[4.25rem] items-center justify-between gap-3 rounded-md border px-4 py-3 text-left transition ${
                 item.name === selected.name ? "border-moss/45 bg-moss/10 shadow-sm" : "border-ink/10 bg-white hover:bg-mint/30"
               }`}
             >
               <span>
                 <strong className="block text-sm text-ink">{item.name}</strong>
-                <span className="mt-1 block text-xs text-ink/55">{item.purpose}</span>
+                <span className="mt-1 block text-xs text-ink/55">{item.judgment}</span>
               </span>
               <span className="shrink-0 rounded-md bg-moss px-2 py-1 text-[0.68rem] font-black text-white">
                 {item.traces.length > 0 ? `${item.traces.length} calls` : item.status}
@@ -433,39 +464,53 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
         <article className="rounded-lg border border-ink/10 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-ink/10 pb-4">
             <div>
-              <h3 className="text-xl font-black text-ink">{selected.name} 보고서</h3>
+              <h3 className="text-xl font-black text-ink">{selected.name} 검토 노트</h3>
               <p className="mt-1 text-sm leading-6 text-ink/65">{selected.purpose}</p>
             </div>
-            <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{selected.status}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-md border px-2.5 py-1 text-xs font-black ${confidenceTone[selected.confidence]}`}>
+                신뢰도 {selected.confidence}
+              </span>
+              <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{selected.status}</span>
+            </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="rounded-md border border-moss/25 bg-moss/10 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-moss">Agent 판단</p>
+            <p className="mt-2 text-lg font-black leading-7 text-ink">{selected.judgment}</p>
+            <p className="mt-3 text-sm leading-6 text-ink/68">{selected.whyItMatters}</p>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-md border border-ink/10 bg-paper/60 p-4">
-              <h4 className="font-bold text-ink">수행 작업</h4>
+              <h4 className="font-bold text-ink">확인한 근거</h4>
               <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
-                {selected.tasks.map((item) => <li key={item}>{item}</li>)}
+                {selected.evidence.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
-            <div className="rounded-md border border-ink/10 bg-paper/60 p-4">
-              <h4 className="font-bold text-ink">관찰 결과</h4>
+            <div className="rounded-md border border-brass/20 bg-brass/10 p-4">
+              <h4 className="font-bold text-ink">다음 확인</h4>
               <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
-                {selected.observations.map((item) => <li key={item}>{item}</li>)}
-              </ul>
-            </div>
-            <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
-              <h4 className="font-bold text-ink">종합 보고서에 전달한 내용</h4>
-              <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
-                {selected.delivered.map((item) => <li key={item}>{item}</li>)}
+                {selected.nextCheck.map((item) => <li key={item}>{item}</li>)}
               </ul>
             </div>
           </div>
 
           <div className="mt-5 rounded-md border border-ink/10 bg-paper/55 p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-bold text-ink">실제 Tool Call Trace</h4>
-              <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">{selected.traces.length} calls</span>
+              <div>
+                <h4 className="font-bold text-ink">기술 로그</h4>
+                <p className="mt-1 text-xs leading-5 text-ink/55">개발자 검증용 실제 Tool Call Trace입니다.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTrace((value) => !value)}
+                className="rounded-md bg-ink px-3 py-2 text-xs font-black text-white transition hover:bg-ink/85"
+              >
+                {showTrace ? "기술 로그 닫기" : `기술 로그 보기 · ${selected.traces.length} calls`}
+              </button>
             </div>
-            {selected.traces.length > 0 ? (
+            {showTrace && selected.traces.length > 0 ? (
               <div className="grid gap-2">
                 {selected.traces.map((trace) => (
                   <article key={trace.id} className="rounded-md border border-ink/10 bg-white p-3">
@@ -481,10 +526,12 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
                   </article>
                 ))}
               </div>
-            ) : (
+            ) : showTrace ? (
               <p className="text-sm leading-6 text-ink/60">
                 이 Agent는 아직 실제 tool trace 대신 리포트 결과를 기반으로 설명됩니다. 다음 고도화 단계에서 독립 tool 호출로 분리할 수 있습니다.
               </p>
+            ) : (
+              <p className="text-sm leading-6 text-ink/60">사용자 판단에는 위 검토 노트가 우선이며, 상세 호출 기록은 필요할 때만 열어 확인합니다.</p>
             )}
           </div>
         </article>
@@ -586,7 +633,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
               }`}
             >
               <NotebookTabs aria-hidden="true" size={15} />
-              Agent 기록
+              Agent 검토
             </button>
           </div>
           <button
