@@ -231,12 +231,22 @@ function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeReque
   }
 
   const adjustedScore = Math.max(report.risk_score, 60);
+  const propertyTypeBreakdown: AnalyzeResponse["score_breakdown"] =
+    adjustedScore > report.risk_score
+      ? {
+          base_score: adjustedScore,
+          base_reason: `${label} 보정 (외부 시세 데이터 도착 전 임시 기준)`,
+          adjustments: [],
+          final_score: adjustedScore
+        }
+      : report.score_breakdown;
 
   return {
     ...report,
     request_property_type: payload.property_type,
     risk_score: adjustedScore,
     risk_level: adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : report.risk_level,
+    score_breakdown: propertyTypeBreakdown,
     risk_signals: [
       {
         severity: "확인 필요",

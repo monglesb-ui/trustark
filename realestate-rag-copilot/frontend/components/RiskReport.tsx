@@ -21,7 +21,7 @@ import {
 import { useMemo, useState } from "react";
 import { getPropertyTypeLabel } from "@/lib/property-types";
 import { runRegistryLookup } from "@/lib/api";
-import type { AgentTrace, AnalyzeRequest, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
+import type { AgentTrace, AnalyzeRequest, AnalyzeResponse, DataSourceStatus, ScoreAdjustmentCategory } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
 import { MapView } from "./MapView";
 
@@ -46,6 +46,83 @@ function yesNoUnknown(value?: boolean | null) {
 function countLabel(value?: number | null, unit = "") {
   if (value === undefined || value === null) return "-";
   return `${formatter.format(value)}${unit}`;
+}
+
+const BREAKDOWN_BASE_COLOR = "bg-ink/75";
+
+function adjustmentColor(category: ScoreAdjustmentCategory) {
+  switch (category) {
+    case "data_quality":
+      return "bg-amber-400";
+    case "rights":
+      return "bg-rose-400";
+    case "property_type":
+      return "bg-sky-400";
+    case "market":
+      return "bg-ink/55";
+    default:
+      return "bg-stone-400";
+  }
+}
+
+function adjustmentLabel(category: ScoreAdjustmentCategory) {
+  switch (category) {
+    case "data_quality":
+      return "데이터 품질 보정";
+    case "rights":
+      return "권리관계 미확인 보정";
+    case "property_type":
+      return "주택유형 보정";
+    case "market":
+      return "시세 보정";
+    default:
+      return "기타 보정";
+  }
+}
+
+function ScoreBreakdownPanel({ breakdown }: { breakdown: AnalyzeResponse["score_breakdown"] }) {
+  if (!breakdown) return null;
+  const total = Math.max(breakdown.final_score, 1);
+  const baseWidth = (breakdown.base_score / 100) * 100;
+  return (
+    <div className="mt-5 rounded-md border border-ink/10 bg-white/70 p-4">
+      <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-ink/45">점수 분해</p>
+      <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-ink/10">
+        <div className={`h-full ${BREAKDOWN_BASE_COLOR}`} style={{ width: `${baseWidth}%` }} />
+        {breakdown.adjustments.map((adj, index) => (
+          <div
+            key={`${adj.category}-${index}`}
+            className={`h-full ${adjustmentColor(adj.category)}`}
+            style={{ width: `${(adj.delta / 100) * 100}%` }}
+          />
+        ))}
+      </div>
+      <ul className="mt-3 space-y-1.5 text-xs text-ink/75">
+        <li className="flex items-start gap-2">
+          <span className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${BREAKDOWN_BASE_COLOR}`} />
+          <span>
+            <strong className="text-ink">{breakdown.base_score}점</strong> · {breakdown.base_reason}
+          </span>
+        </li>
+        {breakdown.adjustments.map((adj, index) => (
+          <li key={`${adj.category}-${index}-row`} className="flex items-start gap-2">
+            <span className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm ${adjustmentColor(adj.category)}`} />
+            <span>
+              <strong className="text-ink">+{adj.delta}점</strong> · {adjustmentLabel(adj.category)} · {adj.reason}
+            </span>
+          </li>
+        ))}
+        <li className="flex items-center justify-between border-t border-ink/10 pt-2 text-ink">
+          <span className="font-black">최종</span>
+          <span className="font-black tabular-nums">{breakdown.final_score}점 / 100</span>
+        </li>
+      </ul>
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 시세 위험과 데이터 품질 보정을 분리해 표시합니다. 데이터 품질 보정은 등기·권리·보증보험이 확인되지 않았을 때
+        보수적으로 가산되는 점수이며, 추가 확인이 완료되면 낮아질 수 있습니다.
+      </p>
+    </div>
+  );
 }
 
 function marketScopeLabel(report: AnalyzeResponse) {
@@ -938,6 +1015,7 @@ export function RiskReport({
             </div>
             <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
+            <ScoreBreakdownPanel breakdown={report.score_breakdown} />
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
               {confidenceItems.map(([label, value, status]) => (
                 <div key={label} className="rounded-md border border-white/70 bg-white/80 p-3 shadow-sm">

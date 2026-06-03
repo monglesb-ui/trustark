@@ -61,6 +61,29 @@ function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeReq
   }
 
   const adjustedScore = Math.max(report.risk_score, floor);
+  const delta = adjustedScore - report.risk_score;
+  const existingBreakdown = report.score_breakdown ?? {
+    base_score: report.risk_score,
+    base_reason: "이전 단계 점수 유지",
+    adjustments: [],
+    final_score: report.risk_score
+  };
+  const adjustedBreakdown = {
+    ...existingBreakdown,
+    adjustments: [
+      ...existingBreakdown.adjustments,
+      ...(delta > 0
+        ? [
+            {
+              category: "data_quality" as const,
+              delta,
+              reason: reasons.join(" ")
+            }
+          ]
+        : [])
+    ],
+    final_score: adjustedScore
+  };
 
   return {
     adjusted: true,
@@ -69,6 +92,7 @@ function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeReq
       ...report,
       risk_score: adjustedScore,
       risk_level: levelFor(adjustedScore),
+      score_breakdown: adjustedBreakdown,
       summary:
         adjustedScore >= 60
           ? jeonseRatio !== null && jeonseRatio !== undefined

@@ -11,6 +11,12 @@ export function buildAnalysisSkeleton(payload: AnalyzeRequest): AnalyzeResponse 
     ],
     risk_level: "데이터 수집 중",
     risk_score: 0,
+    score_breakdown: {
+      base_score: 0,
+      base_reason: "외부 시세 데이터 조회 전",
+      adjustments: [],
+      final_score: 0
+    },
     summary: "외부 데이터 조회 결과에 따라 위험도가 갱신됩니다.",
     location: {
       lat: 0,

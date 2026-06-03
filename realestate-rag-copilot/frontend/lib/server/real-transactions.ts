@@ -637,6 +637,16 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
   const salePrice = payload.sale_price || summary.averageSalePrice || report.market_comparison.input_sale_price || 0;
   const jeonseRatio = salePrice > 0 ? Math.round((inputDeposit / salePrice) * 100) : null;
   const adjustedScore = scoreFromJeonseRatio(jeonseRatio, cleanedReport.risk_score);
+  const baseReason =
+    jeonseRatio === null
+      ? "전세가율 산정 불가 (직전 점수 유지)"
+      : jeonseRatio >= 90
+        ? `전세가율 ${jeonseRatio}% · 깡통전세 의심 구간`
+        : jeonseRatio >= 80
+          ? `전세가율 ${jeonseRatio}% · 위험 구간`
+          : jeonseRatio >= 70
+            ? `전세가율 ${jeonseRatio}% · 검토 구간`
+            : `전세가율 ${jeonseRatio}% · 안전 구간`;
   const sampleDescriptions = summary.transactions
     .slice(0, 3)
     .map((item) => `${item.dealMonth} ${item.label} 매매가 ${Math.round(item.salePrice / 10000).toLocaleString("ko-KR")}만원`)
@@ -663,6 +673,12 @@ export function applySaleMarketSummary(report: AnalyzeResponse, summary: SaleMar
     ...cleanedReport,
     risk_score: adjustedScore,
     risk_level: riskLevel(adjustedScore),
+    score_breakdown: {
+      base_score: adjustedScore,
+      base_reason: baseReason,
+      adjustments: [],
+      final_score: adjustedScore
+    },
     summary:
       jeonseRatio !== null && jeonseRatio >= 80
         ? `실거래 매매 표본 기준 전세가율이 ${jeonseRatio}%로 높습니다. 계약 전 권리관계, 선순위 채권, 보증보험 가능 여부를 우선 확인해 주세요.`

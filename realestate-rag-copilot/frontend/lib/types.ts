@@ -125,6 +125,26 @@ export type RegistryView = {
   note: string;
 };
 
+export type ScoreAdjustmentCategory =
+  | "market"
+  | "property_type"
+  | "data_quality"
+  | "rights"
+  | "other";
+
+export type ScoreAdjustment = {
+  category: ScoreAdjustmentCategory;
+  delta: number;
+  reason: string;
+};
+
+export type ScoreBreakdown = {
+  base_score: number;
+  base_reason: string;
+  adjustments: ScoreAdjustment[];
+  final_score: number;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
@@ -133,6 +153,7 @@ export type AnalyzeResponse = {
   registry?: RegistryView;
   risk_level: string;
   risk_score: number;
+  score_breakdown?: ScoreBreakdown;
   summary: string;
   location: Location;
   markers: MapMarker[];
