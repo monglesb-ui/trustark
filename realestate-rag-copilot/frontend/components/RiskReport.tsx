@@ -425,7 +425,9 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       judgment:
         report.registry?.status === "confirmed"
           ? "등기부등본 요약이 확보되었습니다. 소유자명과 등기번호 등 민감정보는 마스킹했고, 근저당·압류·신탁 후보만 위험 신호로 분리했습니다."
-          : "등기부등본 원문 권리관계가 아직 확정되지 않았습니다. CODEF endpoint/connectedId 또는 원문 등본 확인이 필요합니다.",
+          : report.registry?.status === "requires_user_action"
+            ? "등기부등본 열람은 수수료와 추가인증이 발생할 수 있어 자동 분석에서는 실행하지 않았습니다. 사용자가 별도로 실행해야 합니다."
+            : "등기부등본 원문 권리관계가 아직 확정되지 않았습니다. CODEF 직접인증 입력값 또는 원문 등본 확인이 필요합니다.",
       evidence: [
         `등기부등본: ${statusText(registryStatus)}`,
         `근저당 후보: ${report.registry?.mortgageCount ?? "-"}건`,
@@ -435,7 +437,7 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       ],
       confidence: registryConfidence,
       whyItMatters: "전세 사고의 핵심은 근저당, 선순위 권리, 압류, 신탁 등 권리관계에서 발생하므로 등기부등본 확인이 가격 분석보다 더 결정적인 경우가 많습니다.",
-      nextCheck: ["CODEF 등기부등본 endpoint와 connectedId 확인", "갑구·을구 원문에서 말소되지 않은 권리 확인", "선순위 채권과 보증금 합산 후 회수 가능성 계산"],
+      nextCheck: ["수수료 발생 가능성 확인 후 별도 등기부등본 열람 실행", "갑구·을구 원문에서 말소되지 않은 권리 확인", "선순위 채권과 보증금 합산 후 회수 가능성 계산"],
       traces: tracesForAgent(report, "Registry Agent")
     },
     {
@@ -1014,7 +1016,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
             <span className={`rounded-md px-2.5 py-1 text-xs font-black ${
               registryVerified ? "bg-moss/10 text-moss" : "bg-brass/10 text-brass"
             }`}>
-              {registryVerified ? "민감정보 마스킹 완료" : "원문 확인 필요"}
+              {registryVerified ? "민감정보 마스킹 완료" : registry?.status === "requires_user_action" ? "별도 실행 필요" : "원문 확인 필요"}
             </span>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
@@ -1036,7 +1038,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
             </div>
           </dl>
           <p className="mt-4 rounded-md border border-brass/20 bg-brass/10 p-3 text-xs font-bold leading-5 text-ink/65">
-            {registry?.note ?? "등기부등본 원문 권리관계가 아직 확보되지 않았습니다. CODEF endpoint/connectedId 또는 원문 등본 확인이 필요합니다."}
+            {registry?.note ?? "등기부등본 원문 권리관계가 아직 확보되지 않았습니다. CODEF 직접인증 입력값 또는 원문 등본 확인이 필요합니다."}
           </p>
         </div>
       </section>

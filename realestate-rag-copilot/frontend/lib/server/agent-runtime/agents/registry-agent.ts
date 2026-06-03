@@ -32,6 +32,9 @@ function diagnosticSummary(diagnostics: CodefRegistryDiagnostics) {
   const token = diagnostics.tokenHttpStatus ? ` · token HTTP ${diagnostics.tokenHttpStatus}` : "";
   const api = diagnostics.apiHttpStatus ? ` · api HTTP ${diagnostics.apiHttpStatus}` : "";
   const result = diagnostics.resultCode ? ` · ${diagnostics.resultCode}` : "";
+  if (diagnostics.skippedPaidLookup) {
+    return `민감정보 마스킹 · 자동 분석에서는 등기 열람 호출 생략 · 별도 실행 필요`;
+  }
   if (diagnostics.isTwoWayRequired) {
     return `민감정보 마스킹 · CODEF 추가인증 필요${diagnostics.twoWayMethod ? `(${diagnostics.twoWayMethod})` : ""}${token}${api}${result}`;
   }
@@ -55,12 +58,14 @@ export async function runRegistryAgent({
   report,
   payload,
   legalDong,
-  trace
+  trace,
+  allowPaidLookup = false
 }: {
   report: AnalyzeResponse;
   payload: AnalyzeRequest;
   legalDong: LegalDongCode | null;
   trace: TraceRecorder;
+  allowPaidLookup?: boolean;
 }) {
   const tokenTool = "requestCodefToken";
   assertAllowedTool(tokenTool);
@@ -77,12 +82,14 @@ export async function runRegistryAgent({
     result = await trace.run(
       REGISTRY_AGENT,
       lookupTool,
-      `address=${payload.address} · credentials=masked · 법정동=${legalDong?.regionCode ?? "unknown"}`,
-      () => lookupCodefRegistry({ payload, legalDong }),
+      `address=${payload.address} · credentials=masked · paidLookup=${allowPaidLookup ? "explicit" : "skipped"} · 법정동=${legalDong?.regionCode ?? "unknown"}`,
+      () => lookupCodefRegistry({ payload, legalDong, allowPaidLookup }),
       (lookup) => ({
-        status: lookup.registry ? "success" : lookup.diagnostics.hasRegistryEndpoint ? "missing" : "missing",
+        status: lookup.registry?.status === "confirmed" ? "success" : lookup.diagnostics.skippedPaidLookup ? "missing" : "missing",
         outputSummary: lookup.registry
-          ? `근저당 ${lookup.registry.mortgageCount ?? 0}건 · 압류 ${lookup.registry.attachmentCount ?? 0}건 · 민감정보 마스킹`
+          ? lookup.registry.status === "confirmed"
+            ? `근저당 ${lookup.registry.mortgageCount ?? 0}건 · 압류 ${lookup.registry.attachmentCount ?? 0}건 · 민감정보 마스킹`
+            : lookup.registry.note
           : diagnosticSummary(lookup.diagnostics)
       })
     );
@@ -136,6 +143,36 @@ export async function runRegistryAgent({
         ...report.sections,
         unverified_items: [
           "등기부등본 권리관계는 아직 원문으로 확인되지 않았습니다.",
+          "등본·서류 원문 민감정보는 화면과 문서에서 마스킹해야 합니다.",
+          ...report.sections.unverified_items
+        ]
+      }
+    } satisfies AnalyzeResponse;
+  }
+
+  if (result.registry.status !== "confirmed") {
+    return {
+      ...report,
+      registry: result.registry,
+      data_statuses: upsertStatus(report.data_statuses, {
+        id: "registry",
+        label: "등기부등본",
+        status: "missing",
+        detail: diagnosticSummary(result.diagnostics)
+      }),
+      next_actions: [
+        result.diagnostics.skippedPaidLookup
+          ? "수수료 발생 가능성을 확인한 뒤 별도 등기부등본 열람 실행"
+          : result.diagnostics.isTwoWayRequired
+            ? "CODEF 추가인증 응답(jobIndex, threadIndex, jti, twoWayTimestamp)을 사용해 2차 요청을 이어서 처리"
+            : "CODEF 등기부등본 직접인증 입력값(phoneNo, RSA 암호화 password, inquiryType)을 확인한 뒤 권리관계 원문 조회를 재시도",
+        ...report.next_actions
+      ],
+      sections: {
+        ...report.sections,
+        unverified_items: [
+          result.registry.note,
+          "등기부등본 권리관계는 자동 분석에서 원문 열람하지 않았습니다.",
           "등본·서류 원문 민감정보는 화면과 문서에서 마스킹해야 합니다.",
           ...report.sections.unverified_items
         ]

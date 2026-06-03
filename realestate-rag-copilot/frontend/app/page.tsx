@@ -101,11 +101,11 @@ const agentSteps: AgentStep[] = [
     name: "Registry Agent",
     shortName: "등기 권리",
     role: "CODEF 등기부등본 API로 권리관계 조회 준비 상태와 근저당·압류·신탁 후보를 확인합니다.",
-    preview: "CODEF token · 등기부등본 tool · 민감정보 마스킹",
+    preview: "유료 열람 분리 · 직접인증 입력값 점검 · 민감정보 마스킹",
     Icon: FileKey2,
     logs: [
-      "CODEF 키는 값 없이 설정 여부만 확인하고 토큰 발급 상태를 진단합니다.",
-      "등기부등본 endpoint와 connectedId 준비 여부를 확인합니다.",
+      "자동 분석에서는 수수료 가능성이 있는 등기 열람 호출을 실행하지 않습니다.",
+      "등기부등본 endpoint와 직접인증 입력값 준비 여부를 확인합니다.",
       "응답 원문에서 소유자명, 등기번호, 인증값 등 민감정보를 마스킹합니다.",
       "근저당권, 압류/가압류, 신탁등기, 전세권 후보를 권리 리스크로 분리합니다."
     ]

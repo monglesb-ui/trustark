@@ -332,7 +332,8 @@ export async function POST(request: Request) {
       report: buildingRegisterReport,
       payload,
       legalDong,
-      trace
+      trace,
+      allowPaidLookup: false
     });
     const searchContextReport = await runSearchContextAgent({ report: registryReport, payload, trace });
     const scoredReport = runRiskScoringAgent({ report: searchContextReport, payload, trace });

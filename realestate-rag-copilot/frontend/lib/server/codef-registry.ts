@@ -38,6 +38,7 @@ export type CodefRegistryDiagnostics = {
   resultMessage?: string;
   isTwoWayRequired?: boolean;
   twoWayMethod?: string;
+  skippedPaidLookup?: boolean;
   error?: string;
 };
 
@@ -358,16 +359,32 @@ function summarizeRegistry(data: unknown, payload: AnalyzeRequest): RegistryView
 
 export async function lookupCodefRegistry({
   payload,
-  legalDong
+  legalDong,
+  allowPaidLookup = false
 }: {
   payload: AnalyzeRequest;
   legalDong: LegalDongCode | null;
+  allowPaidLookup?: boolean;
 }): Promise<CodefRegistryLookupResult> {
   const diagnostics = buildDiagnostics();
 
   if (!diagnostics.hasClientId || !diagnostics.hasClientSecret || !diagnostics.hasPublicKey) {
     diagnostics.error = "CODEF credentials are not fully configured";
     return { registry: null, diagnostics };
+  }
+
+  if (!allowPaidLookup) {
+    diagnostics.skippedPaidLookup = true;
+    diagnostics.error = "CODEF registry lookup requires explicit user action";
+    return {
+      registry: {
+        status: "requires_user_action",
+        address: payload.address,
+        flags: [],
+        note: "등기부등본 열람은 수수료와 추가인증이 발생할 수 있어 자동 분석에서는 실행하지 않았습니다. 사용자가 별도 실행을 명시해야 합니다."
+      },
+      diagnostics
+    };
   }
 
   const token = await requestCodefToken(diagnostics);

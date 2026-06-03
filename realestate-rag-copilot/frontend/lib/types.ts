@@ -111,7 +111,7 @@ export type RegistryRiskFlag = {
 };
 
 export type RegistryView = {
-  status: "confirmed" | "unverified" | "unavailable";
+  status: "confirmed" | "unverified" | "unavailable" | "requires_user_action";
   address: string;
   ownerMasked?: string;
   registryNumberMasked?: string;
