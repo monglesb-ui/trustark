@@ -32,6 +32,9 @@ function diagnosticSummary(diagnostics: CodefRegistryDiagnostics) {
   const token = diagnostics.tokenHttpStatus ? ` · token HTTP ${diagnostics.tokenHttpStatus}` : "";
   const api = diagnostics.apiHttpStatus ? ` · api HTTP ${diagnostics.apiHttpStatus}` : "";
   const result = diagnostics.resultCode ? ` · ${diagnostics.resultCode}` : "";
+  if (diagnostics.isTwoWayRequired) {
+    return `민감정보 마스킹 · CODEF 추가인증 필요${diagnostics.twoWayMethod ? `(${diagnostics.twoWayMethod})` : ""}${token}${api}${result}`;
+  }
 
   if (!diagnostics.hasRegistryEndpoint) {
     return `민감정보 마스킹 · CODEF 기본키 ${configured}/4개 설정${token} · 등기부등본 endpoint 미설정`;
@@ -124,7 +127,9 @@ export async function runRegistryAgent({
         detail: diagnosticSummary(result.diagnostics)
       }),
       next_actions: [
-        "CODEF 등기부등본 직접인증 입력값(phoneNo, RSA 암호화 password, inquiryType)을 확인한 뒤 권리관계 원문 조회를 재시도",
+        result.diagnostics.isTwoWayRequired
+          ? "CODEF 추가인증 응답(jobIndex, threadIndex, jti, twoWayTimestamp)을 사용해 2차 요청을 이어서 처리"
+          : "CODEF 등기부등본 직접인증 입력값(phoneNo, RSA 암호화 password, inquiryType)을 확인한 뒤 권리관계 원문 조회를 재시도",
         ...report.next_actions
       ],
       sections: {

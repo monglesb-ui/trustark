@@ -52,7 +52,9 @@ export const serverEnv = {
   codefRegistryPhoneNo: process.env.CODEF_REGISTRY_PHONE_NO,
   codefRegistryPassword: process.env.CODEF_REGISTRY_PASSWORD,
   codefRegistryPasswordRsa: process.env.CODEF_REGISTRY_PASSWORD_RSA,
-  codefRegistryInquiryType: process.env.CODEF_REGISTRY_INQUIRY_TYPE,
+  codefRegistryInquiryType: process.env.CODEF_REGISTRY_INQUIRY_TYPE ?? "3",
+  codefRegistryIssueType: process.env.CODEF_REGISTRY_ISSUE_TYPE ?? "1",
+  codefRegistryRealtyType: process.env.CODEF_REGISTRY_REALTY_TYPE,
 
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
 };

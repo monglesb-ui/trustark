@@ -2,6 +2,7 @@ import type { AnalyzeRequest, AnalyzeResponse, RegistryRiskFlag, RegistryView } 
 import { serverEnv } from "./env";
 import type { LegalDongCode } from "./legal-dong";
 import { publicEncrypt } from "node:crypto";
+import { getPropertyTypeGroup } from "@/lib/property-types";
 
 const CODEF_TOKEN_URL = "https://oauth.codef.io/oauth/token";
 
@@ -35,6 +36,8 @@ export type CodefRegistryDiagnostics = {
   apiHttpStatus?: number;
   resultCode?: string;
   resultMessage?: string;
+  isTwoWayRequired?: boolean;
+  twoWayMethod?: string;
   error?: string;
 };
 
@@ -147,6 +150,97 @@ function encryptPassword() {
     Buffer.from(serverEnv.codefRegistryPassword, "utf8")
   );
   return encrypted.toString("base64");
+}
+
+function realtyTypeFor(payload: AnalyzeRequest) {
+  if (serverEnv.codefRegistryRealtyType) return serverEnv.codefRegistryRealtyType;
+  const group = getPropertyTypeGroup(payload.property_type);
+  if (["apartment", "officetel", "rowhouse", "urban_living"].includes(group)) return "1";
+  if (["detached", "multifamily", "mixed_use"].includes(group)) return "0";
+  return "1";
+}
+
+function parseRoadAddress(address: string) {
+  const cleaned = address.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  const parts = cleaned.split(" ");
+  const sido = parts[0] ?? "";
+  const sigungu = parts[1] ?? "";
+  const buildingNumberIndex = parts.findIndex((part, index) => index >= 2 && /^\d+(?:-\d+)?$/.test(part));
+  const roadName =
+    buildingNumberIndex > 2
+      ? parts.slice(2, buildingNumberIndex).join(" ")
+      : parts.slice(2).find((part) => /(로|길|대로)$/.test(part)) ?? "";
+  const buildingNumber = buildingNumberIndex >= 0 ? parts[buildingNumberIndex] : "";
+
+  return {
+    sido,
+    sigungu,
+    roadName,
+    buildingNumber
+  };
+}
+
+function registryRequestBody(payload: AnalyzeRequest, legalDong: LegalDongCode | null, encryptedPassword: string) {
+  const inquiryType = serverEnv.codefRegistryInquiryType ?? "3";
+  const road = parseRoadAddress(payload.address);
+
+  return {
+    organization: serverEnv.codefRegistryOrganization,
+    phoneNo: serverEnv.codefRegistryPhoneNo,
+    password: encryptedPassword,
+    inquiryType,
+    uniqueNo: null,
+    realtyType: realtyTypeFor(payload),
+    addr_sido: road.sido,
+    address: inquiryType === "1" ? payload.address : null,
+    recordStatus: "0",
+    addr_dong: null,
+    addr_lotNumber: null,
+    inputSelect: null,
+    buildingName: null,
+    dong: null,
+    ho: null,
+    addr_sigungu: road.sigungu,
+    addr_roadName: road.roadName,
+    addr_buildingNumber: road.buildingNumber,
+    jointMortgageJeonseYN: "1",
+    tradingYN: "1",
+    listNumber: null,
+    electronicClosedYN: null,
+    ePrepayNo: null,
+    ePrepayPass: null,
+    issueType: serverEnv.codefRegistryIssueType,
+    startPageNo: null,
+    pageCount: null,
+    originData: null,
+    originDataYN: "0",
+    warningSkipYN: "0",
+    registerSummaryYN: "1",
+    applicationType: null,
+    selectAddress: "0",
+    isIdentityViewYn: "0",
+    identityList: [{ reqIdentity: "" }],
+    lawdCode: legalDong?.lawdCode,
+    regionCode: legalDong?.regionCode
+  };
+}
+
+function valueFromPath(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (record[key] !== undefined) return record[key];
+  for (const child of Object.values(record)) {
+    if (Array.isArray(child)) {
+      for (const item of child) {
+        const found = valueFromPath(item, key);
+        if (found !== undefined) return found;
+      }
+    } else if (typeof child === "object" && child !== null) {
+      const found = valueFromPath(child, key);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
 }
 
 async function requestCodefToken(diagnostics: CodefRegistryDiagnostics) {
@@ -295,17 +389,7 @@ export async function lookupCodefRegistry({
     return { registry: null, diagnostics };
   }
 
-  const body = {
-    organization: serverEnv.codefRegistryOrganization,
-    phoneNo: serverEnv.codefRegistryPhoneNo,
-    password: encryptedPassword,
-    inquiryType: serverEnv.codefRegistryInquiryType,
-    address: payload.address,
-    propertyType: payload.property_type,
-    contractType: payload.contract_type,
-    lawdCode: legalDong?.lawdCode,
-    regionCode: legalDong?.regionCode
-  };
+  const body = registryRequestBody(payload, legalDong, encryptedPassword);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -326,6 +410,13 @@ export async function lookupCodefRegistry({
     const data = JSON.parse(decoded) as CodefResult;
     diagnostics.resultCode = safeText(data.result?.code);
     diagnostics.resultMessage = safeText(data.result?.message) ?? safeText(data.result?.extraMessage);
+    diagnostics.isTwoWayRequired = safeText(valueFromPath(data.data, "continue2Way")) === "true" || valueFromPath(data.data, "continue2Way") === true || diagnostics.resultCode === "CF-03002";
+    diagnostics.twoWayMethod = safeText(valueFromPath(data.data, "method"));
+
+    if (diagnostics.isTwoWayRequired) {
+      diagnostics.error = `추가인증 필요${diagnostics.twoWayMethod ? ` · ${diagnostics.twoWayMethod}` : ""}`;
+      return { registry: null, diagnostics };
+    }
 
     if (!response.ok || diagnostics.resultCode !== "CF-00000") {
       diagnostics.error = diagnostics.resultMessage ?? `CODEF registry request failed · HTTP ${response.status}`;
