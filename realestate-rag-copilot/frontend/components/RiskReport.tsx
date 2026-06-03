@@ -472,7 +472,49 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
   const buildingConfidence = buildingStatus?.status === "success" ? "중간" : "낮음";
   const registryConfidence = registryStatus?.status === "success" ? "중간" : "낮음";
 
+  const plannerTraces = tracesForAgent(report, "Planner Agent");
+  const summarizerTraces = tracesForAgent(report, "Summarizer Agent");
+  const plannerRan = Boolean(report.planner);
+  const summarizerRan = summarizerTraces.some((t) => t.status === "success");
+
   return [
+    {
+      name: "Planner Agent",
+      status: plannerRan ? "완료" : "건너뜀",
+      purpose:
+        "사용자 입력과 자유 질문을 LLM으로 읽고 어떤 신호를 우선시할지 의도 태그와 강조 포인트를 추출합니다. 후속 단계가 사용자 맥락에 맞게 동작하도록 가이드합니다.",
+      judgment: plannerRan
+        ? `사용자가 알고 싶어 하는 것: "${report.planner!.user_question_summary}"`
+        : "OPENAI_API_KEY 미설정 또는 호출 실패로 의도 분류를 건너뛰었습니다. 후속 흐름은 결정론적 템플릿으로 진행됐습니다.",
+      evidence: plannerRan
+        ? [
+            `의도 태그 ${report.planner!.intent_tags.length}개: ${
+              report.planner!.intent_tags.map(intentTagLabel).join(", ") || "(없음)"
+            }`,
+            report.planner!.emphasis.length > 0
+              ? `강조 포인트: ${report.planner!.emphasis.join(" | ")}`
+              : "강조 포인트 없음",
+            "이 분류는 사용자 입력만 보고 추정한 결과로 단정이 아니며, 잘못 짚었다면 질문을 더 구체적으로 적어 재실행해야 합니다."
+          ]
+        : [
+            "Planner Agent는 OPENAI_API_KEY가 필요합니다.",
+            "키가 없을 때 모든 사용자 질문이 동일한 템플릿 흐름으로 처리됩니다."
+          ],
+      confidence: "중간",
+      whyItMatters:
+        "사용자 질문 의도를 명시적으로 분류하면 같은 입력값이어도 \"보증보험 가능성\"을 강조할지 \"임대인 변경 위험\"을 강조할지 후속 단계가 다르게 동작합니다.",
+      nextCheck: plannerRan
+        ? [
+            "Planner가 분류한 의도가 실제 사용자 의도와 일치하는지 확인",
+            "다르다면 질문을 더 구체적으로 다시 입력해 재실행",
+            "잘못 분류된 경우 Summarizer 요약·액션 순서도 함께 점검"
+          ]
+        : [
+            "OPENAI_API_KEY를 Vercel 환경변수에 설정",
+            "키 없이는 사용자 의도 분류 없이 기본 흐름만 동작함을 인지"
+          ],
+      traces: plannerTraces
+    },
     {
       name: "Market Data Agent",
       status: "완료",
@@ -597,6 +639,33 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       whyItMatters: "위험 점수는 사용자가 어떤 항목부터 확인해야 하는지 우선순위를 잡기 위한 신호입니다.",
       nextCheck: report.next_actions.slice(0, 3),
       traces: tracesForAgent(report, "Risk Scoring Agent")
+    },
+    {
+      name: "Summarizer Agent",
+      status: summarizerRan ? "완료" : summarizerTraces.length > 0 ? "실패" : "건너뜀",
+      purpose:
+        "누적된 분석 결과(시세·등기·건축물대장·위험 점수·미확인 항목)와 Planner가 추정한 사용자 의도를 받아 종합 요약 문장과 우선순위가 매겨진 다음 액션 리스트를 LLM이 자연어로 재작성합니다.",
+      judgment: summarizerRan
+        ? `요약 ${report.summary.length}자와 다음 액션 ${report.next_actions.length}개를 사용자 의도 기준으로 재구성했습니다.`
+        : "Summarizer를 건너뛰었거나 호출이 실패해 템플릿 요약과 원래 액션 순서가 그대로 사용됐습니다.",
+      evidence: [
+        `현재 요약: "${report.summary.slice(0, 120)}${report.summary.length > 120 ? "…" : ""}"`,
+        `다음 액션 첫 3개: ${report.next_actions.slice(0, 3).join(" | ") || "(없음)"}`,
+        report.planner
+          ? `Planner 의도 입력: ${
+              report.planner.intent_tags.map(intentTagLabel).join(", ") || "(없음)"
+            }`
+          : "Planner 의도 입력 없음 (기존 보고서만으로 요약)"
+      ],
+      confidence: "중간",
+      whyItMatters:
+        "결정론적 파이프라인이 만든 보고서는 모든 사용자에게 동일한 톤·순서로 전달됩니다. Summarizer는 사용자의 구체적 질문 맥락에 맞춰 어떤 항목을 먼저 언급할지·어떤 행동을 가장 우선시할지 다르게 표현합니다.",
+      nextCheck: [
+        "요약 문장이 단정 표현을 쓰지 않았는지 확인 (Validation Agent가 추가 검증)",
+        "다음 액션 우선순위가 사용자 상황에 맞는지 검토",
+        "필요시 사용자 질문을 다시 입력해 다른 강조점으로 재요약"
+      ],
+      traces: summarizerTraces
     },
     {
       name: "Report Agent",
