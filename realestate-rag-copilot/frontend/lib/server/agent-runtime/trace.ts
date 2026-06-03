@@ -9,7 +9,9 @@ export type TraceAgent =
   | "Registry Agent"
   | "Risk Scoring Agent"
   | "Report Agent"
-  | "Validation Agent";
+  | "Validation Agent"
+  | "Planner Agent"
+  | "Summarizer Agent";
 
 export type TraceRecorder = ReturnType<typeof createTraceRecorder>;
 

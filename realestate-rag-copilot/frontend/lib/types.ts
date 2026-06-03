@@ -145,12 +145,19 @@ export type ScoreBreakdown = {
   final_score: number;
 };
 
+export type PlannerOutput = {
+  intent_tags: string[];
+  emphasis: string[];
+  user_question_summary: string;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];
   building_register?: BuildingRegisterView;
   registry?: RegistryView;
+  planner?: PlannerOutput;
   risk_level: string;
   risk_score: number;
   score_breakdown?: ScoreBreakdown;

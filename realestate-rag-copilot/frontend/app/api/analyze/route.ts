@@ -12,6 +12,8 @@ import { runRegistryAgent } from "@/lib/server/agent-runtime/agents/registry-age
 import { runSearchContextAgent } from "@/lib/server/agent-runtime/agents/search-context-agent";
 import { runReportAgent } from "@/lib/server/agent-runtime/agents/report-agent";
 import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-runtime/agents/validation-agent";
+import { runPlannerAgent } from "@/lib/server/agent-runtime/agents/planner-agent";
+import { runSummarizerAgent } from "@/lib/server/agent-runtime/agents/summarizer-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -283,6 +285,7 @@ export async function POST(request: Request) {
 
   try {
     const skeletonReport = applyPropertyTypeContext(buildAnalysisSkeleton(payload), payload);
+    const planner = await runPlannerAgent({ payload, trace });
     const ragResult = runRagEvidenceAgent({ report: skeletonReport, payload, trace });
     const geocode = await runLocationContextAgent({ payload, trace });
     const geocodedReport = applyGeocoding(ragResult.report, geocode, payload);
@@ -347,7 +350,9 @@ export async function POST(request: Request) {
     });
     const searchContextReport = await runSearchContextAgent({ report: registryReport, payload, trace });
     const scoredReport = runRiskScoringAgent({ report: searchContextReport, payload, trace });
-    const composedReport = runReportAgent({ report: scoredReport, trace });
+    const scoredWithPlanner: AnalyzeResponse = planner ? { ...scoredReport, planner } : scoredReport;
+    const summarizedReport = await runSummarizerAgent({ payload, report: scoredWithPlanner, planner, trace });
+    const composedReport = runReportAgent({ report: summarizedReport, trace });
     const finalReport = runValidationAgent({ report: composedReport, trace });
 
     return NextResponse.json(withTraces(finalReport, trace.traces));

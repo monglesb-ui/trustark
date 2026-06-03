@@ -80,6 +80,71 @@ function adjustmentLabel(category: ScoreAdjustmentCategory) {
   }
 }
 
+const INTENT_TAG_LABELS: Record<string, string> = {
+  concern_jeonse_fraud: "깡통전세/전세사기",
+  concern_rights_transfer: "권리관계 변동",
+  concern_owner_change: "임대인 변경",
+  concern_guarantee_insurance: "전세보증금 반환보증",
+  concern_market_price: "시세 적정성",
+  concern_building_violation: "위반건축물·용도",
+  concern_senior_lien: "선순위 임차인·체납",
+  concern_multi_household: "다가구 호실별 부담",
+  general_first_time: "첫 계약 일반 안내"
+};
+
+function intentTagLabel(tag: string) {
+  return INTENT_TAG_LABELS[tag] ?? tag;
+}
+
+function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] }) {
+  if (!planner) return null;
+  const hasTags = planner.intent_tags.length > 0;
+  const hasEmphasis = planner.emphasis.length > 0;
+  const hasSummary = planner.user_question_summary.trim().length > 0;
+  if (!hasTags && !hasEmphasis && !hasSummary) return null;
+
+  return (
+    <div className="mt-5 rounded-md border border-moss/25 bg-moss/10 p-4">
+      <div className="flex items-center gap-2 text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+        <NotebookTabs aria-hidden="true" size={14} />
+        AI가 파악한 사용자 의도
+      </div>
+      {hasSummary ? (
+        <p className="mt-2 border-l-2 border-moss/40 pl-3 text-sm italic leading-6 text-ink/80">
+          “{planner.user_question_summary}”
+        </p>
+      ) : null}
+      {hasTags ? (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {planner.intent_tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-md bg-white/80 px-2 py-1 text-[0.7rem] font-black text-moss"
+              title={tag}
+            >
+              #{intentTagLabel(tag)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {hasEmphasis ? (
+        <ul className="mt-3 space-y-1 text-xs text-ink/75">
+          {planner.emphasis.map((item, index) => (
+            <li key={`${item}-${index}`} className="flex items-start gap-2">
+              <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-moss" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 이 의도 분류는 AI가 사용자 질문과 입력값을 보고 추정한 것입니다. 후속 요약·액션 순서가 이 의도를 기준으로
+        재구성됩니다. 잘못 짚었다면 질문을 더 구체적으로 적어주세요.
+      </p>
+    </div>
+  );
+}
+
 function ScoreBreakdownPanel({ breakdown }: { breakdown: AnalyzeResponse["score_breakdown"] }) {
   if (!breakdown) return null;
   const total = Math.max(breakdown.final_score, 1);
@@ -1015,6 +1080,7 @@ export function RiskReport({
             </div>
             <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
+            <PlannerInsightPanel planner={report.planner} />
             <ScoreBreakdownPanel breakdown={report.score_breakdown} />
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
               {confidenceItems.map(([label, value, status]) => (
