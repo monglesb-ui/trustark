@@ -1,4 +1,5 @@
 import type { AnalyzeResponse } from "@/lib/types";
+import { getPropertyTypeLabel } from "@/lib/property-types";
 import { serverEnv } from "./env";
 import type { LegalDongCode } from "./legal-dong";
 
@@ -245,13 +246,36 @@ export function applyBuildingRegisterSummary(report: AnalyzeResponse, summary: B
   const purpose = summary.mainPurpose ?? summary.etcPurpose ?? "용도 미확인";
   const violationText =
     summary.violationBuilding === true ? "위반건축물로 표시됨" : summary.violationBuilding === false ? "위반건축물 표시 없음" : "위반건축물 여부 미확인";
+  const propertyTypeLabel = getPropertyTypeLabel(report.request_property_type ?? "other");
+  const buildingSummarySentence = `건축물대장상 주용도는 ${purpose}, 사용승인일은 ${summary.useApprovalDate ?? "미확인"}, 위반건축물 여부는 ${violationText}입니다.`;
+  const adjustedScore = summary.violationBuilding === true ? Math.max(report.risk_score, 78) : report.risk_score;
+  const adjustedLevel = adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : "낮음";
 
   return {
     ...report,
+    building_register: {
+      address: summary.address,
+      roadAddress: summary.roadAddress,
+      buildingName: summary.buildingName,
+      mainPurpose: summary.mainPurpose,
+      etcPurpose: summary.etcPurpose,
+      householdCount: summary.householdCount,
+      familyCount: summary.familyCount,
+      groundFloors: summary.groundFloors,
+      undergroundFloors: summary.undergroundFloors,
+      useApprovalDate: summary.useApprovalDate,
+      violationBuilding: summary.violationBuilding
+    },
+    risk_score: adjustedScore,
+    risk_level: adjustedLevel,
+    summary:
+      summary.violationBuilding === true
+        ? `${report.summary} 건축물대장에 위반건축물 표시가 있어 보증보험, 대출, 전입·대항력 판단을 원문으로 추가 확인해야 합니다.`
+        : `${report.summary} ${buildingSummarySentence} 등기부등본 권리관계는 아직 별도 확인이 필요합니다.`,
     evidence: [
       {
         title: "건축물대장 표제부 조회",
-        description: `${summary.address}의 주용도는 ${purpose}입니다. 사용승인일은 ${summary.useApprovalDate ?? "-"}이고, ${violationText}입니다.`,
+        description: `${summary.address}의 주용도는 ${purpose}입니다. 계약 유형은 ${propertyTypeLabel}로 입력되었습니다. 사용승인일은 ${summary.useApprovalDate ?? "-"}이고, ${violationText}입니다.`,
         source: "data.go.kr:BldRgstHubService:getBrTitleInfo"
       },
       ...report.evidence

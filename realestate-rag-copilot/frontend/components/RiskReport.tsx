@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleDashed,
   Download,
+  FileBadge,
   FileText,
   Gauge,
   LayoutDashboard,
@@ -34,6 +35,17 @@ function dealMonth(value?: string | null) {
   return `${value.slice(0, 4)}.${value.slice(4, 6)}`;
 }
 
+function yesNoUnknown(value?: boolean | null) {
+  if (value === true) return "표시 있음";
+  if (value === false) return "표시 없음";
+  return "미확인";
+}
+
+function countLabel(value?: number | null, unit = "") {
+  if (value === undefined || value === null) return "-";
+  return `${formatter.format(value)}${unit}`;
+}
+
 function marketScopeLabel(report: AnalyzeResponse) {
   if (report.market_comparison.match_mode === "complex") {
     return report.market_comparison.complex_name ? `${report.market_comparison.complex_name} 단지 기준` : "입력 단지 기준";
@@ -45,6 +57,7 @@ function marketScopeLabel(report: AnalyzeResponse) {
 function sourceLabel(source: string) {
   if (source.startsWith("rag_docs")) return "RAG 문서";
   if (source.startsWith("naver-search")) return "네이버 검색";
+  if (source.startsWith("data.go.kr")) return "공공데이터 API";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
   if (source.includes("mock")) return "대체 표본";
   return source;
@@ -596,6 +609,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
   );
   const generatedAt = todayLabel();
   const modeLabel = dataMode(report.data_statuses);
+  const buildingRegister = report.building_register;
   const confidenceItems = [
     ["실거래 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.match_mode === "complex" ? "단지 매칭" : "지역 참고"],
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
@@ -727,13 +741,32 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
             <DataStatusStrip report={report} framed={false} />
           </section>
 
+          {buildingRegister ? (
+            <section className="mt-8">
+              <SectionTitle number="04" title="건축물대장 요약" />
+              <dl className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["주용도", buildingRegister.mainPurpose ?? buildingRegister.etcPurpose ?? "-"],
+                  ["사용승인일", buildingRegister.useApprovalDate ?? "-"],
+                  ["위반건축물", yesNoUnknown(buildingRegister.violationBuilding)],
+                  ["지상/지하층", `${countLabel(buildingRegister.groundFloors, "층")} / ${countLabel(buildingRegister.undergroundFloors, "층")}`]
+                ].map(([label, value]) => (
+                  <div key={label} className="metric-tile p-4">
+                    <dt className="text-xs font-bold text-ink/50">{label}</dt>
+                    <dd className="mt-1 font-bold text-ink">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
+
           <section className="mt-8">
-            <SectionTitle number="04" title="RAG 근거 문서" />
+            <SectionTitle number={buildingRegister ? "05" : "04"} title="RAG 근거 문서" />
             <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="05" title="다음 확인 액션" />
+            <SectionTitle number={buildingRegister ? "06" : "05"} title="다음 확인 액션" />
             <ol className="grid gap-2 text-sm leading-6 text-ink/75">
               {report.next_actions.map((item) => (
                 <li key={item} className="rounded-md border border-ink/10 bg-white p-3">{item}</li>
@@ -742,7 +775,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="06" title="검토 상태" />
+            <SectionTitle number={buildingRegister ? "07" : "06"} title="검토 상태" />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
                 <h3 className="font-bold text-ink">확인된 사실</h3>
@@ -859,7 +892,54 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
       </div>
 
       <section>
-        <SectionTitle number="04" title="RAG 근거 문서" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
+        <SectionTitle number="04" title="건축물대장 요약" description={buildingRegister ? "표제부 확인" : "미확보"} />
+        {buildingRegister ? (
+          <div className="dashboard-panel p-5">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileBadge aria-hidden="true" size={20} className="text-moss" />
+                <div>
+                  <h2 className="text-lg font-bold text-ink">건축물 기본 정보</h2>
+                  <p className="mt-1 text-xs font-bold text-ink/45">{buildingRegister.address}</p>
+                </div>
+              </div>
+              <span className={`rounded-md px-2.5 py-1 text-xs font-black ${
+                buildingRegister.violationBuilding === true ? "bg-clay/10 text-clay" : "bg-moss/10 text-moss"
+              }`}>
+                위반건축물 {yesNoUnknown(buildingRegister.violationBuilding)}
+              </span>
+            </div>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div className="metric-tile p-4">
+                <dt className="text-ink/60">주용도</dt>
+                <dd className="mt-1 font-black text-ink">{buildingRegister.mainPurpose ?? buildingRegister.etcPurpose ?? "-"}</dd>
+              </div>
+              <div className="metric-tile p-4">
+                <dt className="text-ink/60">사용승인일</dt>
+                <dd className="mt-1 font-black text-ink">{buildingRegister.useApprovalDate ?? "-"}</dd>
+              </div>
+              <div className="metric-tile p-4">
+                <dt className="text-ink/60">세대/가구</dt>
+                <dd className="mt-1 font-black text-ink">{countLabel(buildingRegister.householdCount)} / {countLabel(buildingRegister.familyCount)}</dd>
+              </div>
+              <div className="metric-tile p-4">
+                <dt className="text-ink/60">지상/지하층</dt>
+                <dd className="mt-1 font-black text-ink">{countLabel(buildingRegister.groundFloors, "층")} / {countLabel(buildingRegister.undergroundFloors, "층")}</dd>
+              </div>
+            </dl>
+            <p className="mt-4 rounded-md border border-brass/20 bg-brass/10 p-3 text-xs font-bold leading-5 text-ink/65">
+              건축물대장은 용도와 위반건축물 여부를 확인하는 자료입니다. 등기부등본의 소유자, 근저당, 압류, 신탁 여부는 별도 확인이 필요합니다.
+            </p>
+          </div>
+        ) : (
+          <div className="dashboard-panel p-5 text-sm leading-6 text-ink/65">
+            건축물대장 표제부가 아직 확보되지 않았습니다. 주소 지번과 동 단위 법정동코드가 확보되면 주용도, 사용승인일, 위반건축물 여부를 표시합니다.
+          </div>
+        )}
+      </section>
+
+      <section>
+        <SectionTitle number="05" title="RAG 근거 문서" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
         <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
       </section>
 

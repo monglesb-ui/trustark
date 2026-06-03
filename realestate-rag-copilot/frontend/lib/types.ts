@@ -88,10 +88,25 @@ export type AgentTrace = {
   durationMs: number;
 };
 
+export type BuildingRegisterView = {
+  address: string;
+  roadAddress?: string;
+  buildingName?: string;
+  mainPurpose?: string;
+  etcPurpose?: string;
+  householdCount?: number | null;
+  familyCount?: number | null;
+  groundFloors?: number | null;
+  undergroundFloors?: number | null;
+  useApprovalDate?: string;
+  violationBuilding?: boolean | null;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];
+  building_register?: BuildingRegisterView;
   risk_level: string;
   risk_score: number;
   summary: string;
