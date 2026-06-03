@@ -36,8 +36,13 @@ function diagnosticSummary(diagnostics: CodefRegistryDiagnostics) {
   if (!diagnostics.hasRegistryEndpoint) {
     return `민감정보 마스킹 · CODEF 기본키 ${configured}/4개 설정${token} · 등기부등본 endpoint 미설정`;
   }
-  if (!diagnostics.hasConnectedId) {
-    return `민감정보 마스킹 · CODEF 기본키 ${configured}/4개 설정${token} · connectedId 미설정`;
+  if (!diagnostics.hasRegistryPhoneNo || !diagnostics.hasRegistryPassword || !diagnostics.hasRegistryInquiryType) {
+    const missing = [
+      diagnostics.hasRegistryPhoneNo ? null : "phoneNo",
+      diagnostics.hasRegistryPassword ? null : "password",
+      diagnostics.hasRegistryInquiryType ? null : "inquiryType"
+    ].filter(Boolean).join(", ");
+    return `민감정보 마스킹 · CODEF 기본키 ${configured}/4개 설정${token} · 등기 직접인증 입력값 미설정(${missing})`;
   }
   if (diagnostics.error) return `민감정보 마스킹 · ${diagnostics.error}${token}${api}${result}`;
   return `민감정보 마스킹 · CODEF 기본키 ${configured}/4개 설정${token}${api}${result}`;
@@ -119,7 +124,7 @@ export async function runRegistryAgent({
         detail: diagnosticSummary(result.diagnostics)
       }),
       next_actions: [
-        "CODEF 등기부등본 상품 endpoint와 connectedId를 확인한 뒤 권리관계 원문 조회를 재시도",
+        "CODEF 등기부등본 직접인증 입력값(phoneNo, RSA 암호화 password, inquiryType)을 확인한 뒤 권리관계 원문 조회를 재시도",
         ...report.next_actions
       ],
       sections: {

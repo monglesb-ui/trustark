@@ -1,6 +1,7 @@
 import type { AnalyzeRequest, AnalyzeResponse, RegistryRiskFlag, RegistryView } from "@/lib/types";
 import { serverEnv } from "./env";
 import type { LegalDongCode } from "./legal-dong";
+import { publicEncrypt } from "node:crypto";
 
 const CODEF_TOKEN_URL = "https://oauth.codef.io/oauth/token";
 
@@ -26,6 +27,9 @@ export type CodefRegistryDiagnostics = {
   hasClientSecret: boolean;
   hasConnectedId: boolean;
   hasRegistryEndpoint: boolean;
+  hasRegistryPhoneNo: boolean;
+  hasRegistryPassword: boolean;
+  hasRegistryInquiryType: boolean;
   tokenHttpStatus?: number;
   tokenOk?: boolean;
   apiHttpStatus?: number;
@@ -118,8 +122,31 @@ function buildDiagnostics(): CodefRegistryDiagnostics {
     hasClientId: Boolean(serverEnv.codefClientId),
     hasClientSecret: Boolean(serverEnv.codefClientSecret),
     hasConnectedId: Boolean(serverEnv.codefConnectedId),
-    hasRegistryEndpoint: Boolean(serverEnv.codefRegistryEndpoint)
+    hasRegistryEndpoint: Boolean(serverEnv.codefRegistryEndpoint),
+    hasRegistryPhoneNo: Boolean(serverEnv.codefRegistryPhoneNo),
+    hasRegistryPassword: Boolean(serverEnv.codefRegistryPassword || serverEnv.codefRegistryPasswordRsa),
+    hasRegistryInquiryType: Boolean(serverEnv.codefRegistryInquiryType)
   };
+}
+
+function normalizePublicKey(value: string) {
+  if (value.includes("BEGIN PUBLIC KEY")) return value;
+  const chunks = value.replace(/\s+/g, "").match(/.{1,64}/g)?.join("\n") ?? value;
+  return `-----BEGIN PUBLIC KEY-----\n${chunks}\n-----END PUBLIC KEY-----`;
+}
+
+function encryptPassword() {
+  if (serverEnv.codefRegistryPasswordRsa) return serverEnv.codefRegistryPasswordRsa;
+  if (!serverEnv.codefRegistryPassword || !serverEnv.codefPublicKey) return undefined;
+
+  const encrypted = publicEncrypt(
+    {
+      key: normalizePublicKey(serverEnv.codefPublicKey),
+      padding: 1
+    },
+    Buffer.from(serverEnv.codefRegistryPassword, "utf8")
+  );
+  return encrypted.toString("base64");
 }
 
 async function requestCodefToken(diagnostics: CodefRegistryDiagnostics) {
@@ -257,13 +284,22 @@ export async function lookupCodefRegistry({
     return { registry: null, diagnostics };
   }
 
-  if (!diagnostics.hasConnectedId) {
-    diagnostics.error = "CODEF_CONNECTED_ID is not configured";
+  if (!diagnostics.hasRegistryPhoneNo || !diagnostics.hasRegistryPassword || !diagnostics.hasRegistryInquiryType) {
+    diagnostics.error = "CODEF registry direct auth parameters are not fully configured";
+    return { registry: null, diagnostics };
+  }
+
+  const encryptedPassword = encryptPassword();
+  if (!encryptedPassword) {
+    diagnostics.error = "CODEF registry password encryption failed";
     return { registry: null, diagnostics };
   }
 
   const body = {
-    connectedId: serverEnv.codefConnectedId,
+    organization: serverEnv.codefRegistryOrganization,
+    phoneNo: serverEnv.codefRegistryPhoneNo,
+    password: encryptedPassword,
+    inquiryType: serverEnv.codefRegistryInquiryType,
     address: payload.address,
     propertyType: payload.property_type,
     contractType: payload.contract_type,
