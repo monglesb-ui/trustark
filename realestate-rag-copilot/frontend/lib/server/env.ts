@@ -42,6 +42,13 @@ export const serverEnv = {
     process.env.NAVER_SEARCH_CLIENT_SECRET ??
     process.env.NAVER_CLIENT_SECRET,
 
+  codefApiHost: process.env.CODEF_API_HOST ?? "https://development.codef.io",
+  codefPublicKey: process.env.CODEF_PUBLIC_KEY,
+  codefClientId: process.env.CODEF_CLIENT_ID,
+  codefClientSecret: process.env.CODEF_CLIENT_SECRET,
+  codefConnectedId: process.env.CODEF_CONNECTED_ID,
+  codefRegistryEndpoint: process.env.CODEF_REGISTRY_ENDPOINT,
+
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
 };
 

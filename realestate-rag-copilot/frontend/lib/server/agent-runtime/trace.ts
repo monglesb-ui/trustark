@@ -6,6 +6,7 @@ export type TraceAgent =
   | "Search Context Agent"
   | "Location Context Agent"
   | "Building Register Agent"
+  | "Registry Agent"
   | "Risk Scoring Agent"
   | "Report Agent"
   | "Validation Agent";

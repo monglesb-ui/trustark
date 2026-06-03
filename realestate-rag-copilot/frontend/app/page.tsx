@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Database,
   FileBadge,
+  FileKey2,
   FileSearch,
   LoaderCircle,
   MapPinned,
@@ -94,6 +95,19 @@ const agentSteps: AgentStep[] = [
       "건축물대장 표제부 API를 호출해 건물 기본 정보를 확인합니다.",
       "주용도, 사용승인일, 위반건축물 여부를 리포트 근거로 분리합니다.",
       "호실별 전유부나 등기부등본이 필요한 항목은 미확인으로 남깁니다."
+    ]
+  },
+  {
+    name: "Registry Agent",
+    shortName: "등기 권리",
+    role: "CODEF 등기부등본 API로 권리관계 조회 준비 상태와 근저당·압류·신탁 후보를 확인합니다.",
+    preview: "CODEF token · 등기부등본 tool · 민감정보 마스킹",
+    Icon: FileKey2,
+    logs: [
+      "CODEF 키는 값 없이 설정 여부만 확인하고 토큰 발급 상태를 진단합니다.",
+      "등기부등본 endpoint와 connectedId 준비 여부를 확인합니다.",
+      "응답 원문에서 소유자명, 등기번호, 인증값 등 민감정보를 마스킹합니다.",
+      "근저당권, 압류/가압류, 신탁등기, 전세권 후보를 권리 리스크로 분리합니다."
     ]
   },
   {

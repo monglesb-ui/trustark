@@ -18,8 +18,9 @@ async function main() {
   await page.getByText("종합 위험도").waitFor({ timeout: 15000 });
   await page.getByText(/검토 필요|위험/).first().waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "핵심 위험 신호" }).waitFor({ timeout: 15000 });
-  await page.getByRole("heading", { name: "시세 적정성" }).waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: "입력 단지 실거래가" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "위치 맥락" }).waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: "등기부등본 요약" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "RAG 근거 문서" }).waitFor({ timeout: 15000 });
   await page.getByRole("heading", { name: "다음 확인 액션" }).waitFor({ timeout: 15000 });
   await page.getByText("핵심 근거").waitFor({ timeout: 15000 });

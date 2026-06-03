@@ -8,6 +8,7 @@ import { runRagEvidenceAgent } from "@/lib/server/agent-runtime/agents/rag-evide
 import { runRiskScoringAgent } from "@/lib/server/agent-runtime/agents/risk-scoring-agent";
 import { runLocationContextAgent } from "@/lib/server/agent-runtime/agents/location-context-agent";
 import { runBuildingRegisterAgent } from "@/lib/server/agent-runtime/agents/building-register-agent";
+import { runRegistryAgent } from "@/lib/server/agent-runtime/agents/registry-agent";
 import { runSearchContextAgent } from "@/lib/server/agent-runtime/agents/search-context-agent";
 import { runReportAgent } from "@/lib/server/agent-runtime/agents/report-agent";
 import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-runtime/agents/validation-agent";
@@ -327,7 +328,13 @@ export async function POST(request: Request) {
       geocode,
       trace
     });
-    const searchContextReport = await runSearchContextAgent({ report: buildingRegisterReport, payload, trace });
+    const registryReport = await runRegistryAgent({
+      report: buildingRegisterReport,
+      payload,
+      legalDong,
+      trace
+    });
+    const searchContextReport = await runSearchContextAgent({ report: registryReport, payload, trace });
     const scoredReport = runRiskScoringAgent({ report: searchContextReport, payload, trace });
     const composedReport = runReportAgent({ report: scoredReport, trace });
     const finalReport = runValidationAgent({ report: composedReport, trace });

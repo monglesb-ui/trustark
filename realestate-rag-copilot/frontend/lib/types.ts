@@ -102,11 +102,35 @@ export type BuildingRegisterView = {
   violationBuilding?: boolean | null;
 };
 
+export type RegistryRiskFlag = {
+  type: "mortgage" | "attachment" | "trust" | "lease_right" | "owner_mismatch" | "unknown";
+  severity: "높음" | "확인 필요" | "낮음";
+  title: string;
+  detail: string;
+  amount?: number | null;
+};
+
+export type RegistryView = {
+  status: "confirmed" | "unverified" | "unavailable";
+  address: string;
+  ownerMasked?: string;
+  registryNumberMasked?: string;
+  issuedAt?: string;
+  seniorClaimAmount?: number | null;
+  mortgageCount?: number | null;
+  attachmentCount?: number | null;
+  trustRegistered?: boolean | null;
+  leaseRightRegistered?: boolean | null;
+  flags: RegistryRiskFlag[];
+  note: string;
+};
+
 export type AnalyzeResponse = {
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];
   building_register?: BuildingRegisterView;
+  registry?: RegistryView;
   risk_level: string;
   risk_score: number;
   summary: string;

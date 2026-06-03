@@ -7,6 +7,7 @@ import {
   CircleDashed,
   Download,
   FileBadge,
+  FileKey2,
   FileText,
   Gauge,
   LayoutDashboard,
@@ -58,6 +59,7 @@ function sourceLabel(source: string) {
   if (source.startsWith("rag_docs")) return "RAG 문서";
   if (source.startsWith("naver-search")) return "네이버 검색";
   if (source.startsWith("data.go.kr")) return "공공데이터 API";
+  if (source.startsWith("codef")) return "CODEF API";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
   if (source.includes("mock")) return "대체 표본";
   return source;
@@ -115,6 +117,19 @@ function makeReportHtml(report: AnalyzeResponse) {
   const warningItems = report.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const confirmedItems = report.sections.confirmed_facts.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const unverifiedItems = report.sections.unverified_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+  const registryItems = report.registry
+    ? `
+      <h2>등기부등본 요약</h2>
+      <dl class="grid">
+        <div><dt>상태</dt><dd>${escapeHtml(report.registry.status === "confirmed" ? "권리관계 요약 확인" : "권리관계 미확인")}</dd></div>
+        <div><dt>소유자</dt><dd>${escapeHtml(report.registry.ownerMasked ?? "마스킹/미확인")}</dd></div>
+        <div><dt>근저당</dt><dd>${escapeHtml(String(report.registry.mortgageCount ?? "-"))}건</dd></div>
+        <div><dt>압류/가압류</dt><dd>${escapeHtml(String(report.registry.attachmentCount ?? "-"))}건</dd></div>
+        <div><dt>신탁</dt><dd>${report.registry.trustRegistered ? "후보 있음" : "후보 없음/미확인"}</dd></div>
+        <div><dt>민감정보</dt><dd>마스킹 적용</dd></div>
+      </dl>
+      <p class="notice">${escapeHtml(report.registry.note)}</p>`
+    : "";
 
   return `<!doctype html>
 <html lang="ko">
@@ -161,6 +176,7 @@ function makeReportHtml(report: AnalyzeResponse) {
     </dl>
     <h2>데이터 조회 상태</h2>
     <ul>${dataStatusItems}</ul>
+    ${registryItems}
     <h2>핵심 위험 신호</h2>
     <ul>${signalItems || evidenceItems}</ul>
     <h2>핵심 근거</h2>
@@ -306,10 +322,12 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
   const saleStatus = statusById(report, "sale-market");
   const searchStatus = statusById(report, "search-context");
   const buildingStatus = statusById(report, "building-register");
+  const registryStatus = statusById(report, "registry");
   const marketConfidence = rentStatus?.status === "success" && saleStatus?.status === "success" ? "높음" : "중간";
   const locationConfidence = geocodingStatus?.status === "success" ? "높음" : "낮음";
   const searchConfidence = searchStatus?.status === "success" ? "중간" : "낮음";
   const buildingConfidence = buildingStatus?.status === "success" ? "중간" : "낮음";
+  const registryConfidence = registryStatus?.status === "success" ? "중간" : "낮음";
 
   return [
     {
@@ -399,6 +417,26 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       whyItMatters: "건축물대장의 용도와 위반건축물 여부는 보증보험, 전입신고, 대항력 판단에서 중요한 사전 확인 항목입니다.",
       nextCheck: ["건축물대장 원문에서 위반건축물 여부 확인", "전유부/호실 정보와 계약 대상 일치 여부 확인", "용도가 주거 사용과 충돌하지 않는지 확인"],
       traces: tracesForAgent(report, "Building Register Agent")
+    },
+    {
+      name: "Registry Agent",
+      status: "완료",
+      purpose: "CODEF 등기부등본 API 연결 상태를 확인하고, 응답이 확보되면 권리관계 리스크 후보를 민감정보 마스킹 후 요약합니다.",
+      judgment:
+        report.registry?.status === "confirmed"
+          ? "등기부등본 요약이 확보되었습니다. 소유자명과 등기번호 등 민감정보는 마스킹했고, 근저당·압류·신탁 후보만 위험 신호로 분리했습니다."
+          : "등기부등본 원문 권리관계가 아직 확정되지 않았습니다. CODEF endpoint/connectedId 또는 원문 등본 확인이 필요합니다.",
+      evidence: [
+        `등기부등본: ${statusText(registryStatus)}`,
+        `근저당 후보: ${report.registry?.mortgageCount ?? "-"}건`,
+        `압류/가압류 후보: ${report.registry?.attachmentCount ?? "-"}건`,
+        `신탁 후보: ${report.registry?.trustRegistered === true ? "있음" : "없음/미확인"}`,
+        "등본과 다른 서류의 소유자명, 등기번호, 인증값, 원문 식별자는 화면과 문서에서 마스킹합니다."
+      ],
+      confidence: registryConfidence,
+      whyItMatters: "전세 사고의 핵심은 근저당, 선순위 권리, 압류, 신탁 등 권리관계에서 발생하므로 등기부등본 확인이 가격 분석보다 더 결정적인 경우가 많습니다.",
+      nextCheck: ["CODEF 등기부등본 endpoint와 connectedId 확인", "갑구·을구 원문에서 말소되지 않은 권리 확인", "선순위 채권과 보증금 합산 후 회수 가능성 계산"],
+      traces: tracesForAgent(report, "Registry Agent")
     },
     {
       name: "Risk Scoring Agent",
@@ -610,10 +648,12 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
   const generatedAt = todayLabel();
   const modeLabel = dataMode(report.data_statuses);
   const buildingRegister = report.building_register;
+  const registry = report.registry;
+  const registryVerified = registry?.status === "confirmed";
   const confidenceItems = [
     ["실거래 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.match_mode === "complex" ? "단지 매칭" : "지역 참고"],
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
-    ["권리관계", "미확인", "추가 필요"]
+    ["권리관계", registryVerified ? "등기 요약" : "미확인", registryVerified ? "마스킹 반영" : "추가 필요"]
   ];
   const agentReports = useMemo(() => buildAgentReports(report, ragEvidence.length), [report, ragEvidence.length]);
 
@@ -761,12 +801,34 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           ) : null}
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "05" : "04"} title="RAG 근거 문서" />
+            <SectionTitle number={buildingRegister ? "05" : "04"} title="등기부등본 요약" />
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {[
+                ["상태", registryVerified ? "권리관계 요약 확인" : "권리관계 미확인"],
+                ["소유자", registry?.ownerMasked ?? "마스킹/미확인"],
+                ["근저당", registry?.mortgageCount !== undefined && registry?.mortgageCount !== null ? `${registry.mortgageCount}건` : "-"],
+                ["압류/가압류", registry?.attachmentCount !== undefined && registry?.attachmentCount !== null ? `${registry.attachmentCount}건` : "-"],
+                ["신탁", registry?.trustRegistered === true ? "후보 있음" : "후보 없음/미확인"],
+                ["민감정보", "마스킹 적용"]
+              ].map(([label, value]) => (
+                <div key={label} className="metric-tile p-4">
+                  <dt className="text-xs font-bold text-ink/50">{label}</dt>
+                  <dd className="mt-1 font-bold text-ink">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-3 rounded-md border border-brass/20 bg-brass/10 p-3 text-xs font-bold leading-5 text-ink/65">
+              {registry?.note ?? "등기부등본 원문 권리관계가 아직 확보되지 않았습니다. 원문 확인 전에는 안전 여부를 단정하지 않습니다."}
+            </p>
+          </section>
+
+          <section className="mt-8">
+            <SectionTitle number={buildingRegister ? "06" : "05"} title="RAG 근거 문서" />
             <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
           </section>
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "06" : "05"} title="다음 확인 액션" />
+            <SectionTitle number={buildingRegister ? "07" : "06"} title="다음 확인 액션" />
             <ol className="grid gap-2 text-sm leading-6 text-ink/75">
               {report.next_actions.map((item) => (
                 <li key={item} className="rounded-md border border-ink/10 bg-white p-3">{item}</li>
@@ -775,7 +837,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           </section>
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "07" : "06"} title="검토 상태" />
+            <SectionTitle number={buildingRegister ? "08" : "07"} title="검토 상태" />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
                 <h3 className="font-bold text-ink">확인된 사실</h3>
@@ -939,7 +1001,48 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
       </section>
 
       <section>
-        <SectionTitle number="05" title="RAG 근거 문서" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
+        <SectionTitle number="05" title="등기부등본 요약" description={registryVerified ? "권리관계 요약" : "미확인"} />
+        <div className="dashboard-panel p-5">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <FileKey2 aria-hidden="true" size={20} className="text-moss" />
+              <div>
+                <h2 className="text-lg font-bold text-ink">권리관계 기본 정보</h2>
+                <p className="mt-1 text-xs font-bold text-ink/45">{registry?.address ?? report.location.address}</p>
+              </div>
+            </div>
+            <span className={`rounded-md px-2.5 py-1 text-xs font-black ${
+              registryVerified ? "bg-moss/10 text-moss" : "bg-brass/10 text-brass"
+            }`}>
+              {registryVerified ? "민감정보 마스킹 완료" : "원문 확인 필요"}
+            </span>
+          </div>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+            <div className="metric-tile p-4">
+              <dt className="text-ink/60">소유자</dt>
+              <dd className="mt-1 font-black text-ink">{registry?.ownerMasked ?? "마스킹/미확인"}</dd>
+            </div>
+            <div className="metric-tile p-4">
+              <dt className="text-ink/60">근저당</dt>
+              <dd className="mt-1 font-black text-ink">{registry?.mortgageCount !== undefined && registry?.mortgageCount !== null ? `${registry.mortgageCount}건` : "-"}</dd>
+            </div>
+            <div className="metric-tile p-4">
+              <dt className="text-ink/60">압류/가압류</dt>
+              <dd className="mt-1 font-black text-ink">{registry?.attachmentCount !== undefined && registry?.attachmentCount !== null ? `${registry.attachmentCount}건` : "-"}</dd>
+            </div>
+            <div className="metric-tile p-4">
+              <dt className="text-ink/60">신탁/전세권</dt>
+              <dd className="mt-1 font-black text-ink">{registry?.trustRegistered === true ? "신탁 후보" : registry?.leaseRightRegistered === true ? "전세권 후보" : "없음/미확인"}</dd>
+            </div>
+          </dl>
+          <p className="mt-4 rounded-md border border-brass/20 bg-brass/10 p-3 text-xs font-bold leading-5 text-ink/65">
+            {registry?.note ?? "등기부등본 원문 권리관계가 아직 확보되지 않았습니다. CODEF endpoint/connectedId 또는 원문 등본 확인이 필요합니다."}
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <SectionTitle number="06" title="RAG 근거 문서" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
         <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
       </section>
 
