@@ -333,7 +333,7 @@ function AnalyzingPanel({ activeStep, visibleLogCount }: { activeStep: number; v
             <h3 className="font-black text-ink">Live Trace</h3>
             <span className="rounded-md bg-ink px-2.5 py-1 text-xs font-bold text-white">agent runtime</span>
           </div>
-          <div className="grid max-h-[31rem] gap-2 overflow-hidden">
+          <div className="grid max-h-[31rem] gap-2 overflow-y-auto pr-2 pb-1">
             {visibleLogs.map((item, index) => (
               <div key={`${item.agent}-${item.message}`} className="rounded-md border border-ink/10 bg-white p-3 text-sm shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-300">
                 <div className="mb-1 flex items-center gap-2 text-[0.68rem] font-black uppercase text-moss">

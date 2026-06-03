@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPinned } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { publicEnv } from "@/lib/public-env";
 import type { Location, MapMarker } from "@/lib/types";
 
@@ -48,6 +48,19 @@ export function MapView({ location, markers }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const clientId = publicEnv.naverMapClientId;
   const [mapStatus, setMapStatus] = useState("네이버 지도 준비 중");
+  const targetMarkers = useMemo(() => markers.filter((marker) => marker.marker_type === "target"), [markers]);
+  const primaryTarget = useMemo(
+    () =>
+      targetMarkers[0] ?? {
+        id: "target",
+        label: "대상 주소",
+        lat: location.lat,
+        lng: location.lng,
+        marker_type: "target"
+      },
+    [location.lat, location.lng, targetMarkers]
+  );
+  const comparableCount = useMemo(() => markers.filter((marker) => marker.marker_type !== "target").length, [markers]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -64,11 +77,8 @@ export function MapView({ location, markers }: Props) {
     }
 
     function markerSetFor(centerLat: number, centerLng: number, useClientGeocode: boolean) {
-      if (!useClientGeocode) return markers;
-
-      return markers
-        .filter((marker) => marker.marker_type === "target")
-        .map((marker) => ({ ...marker, lat: centerLat, lng: centerLng }));
+      const target = { ...primaryTarget, lat: centerLat, lng: centerLng };
+      return [useClientGeocode ? target : primaryTarget];
     }
 
     function drawMap(centerLat: number, centerLng: number, useClientGeocode = false) {
@@ -132,7 +142,7 @@ export function MapView({ location, markers }: Props) {
       setMapStatus("네이버 지도 스크립트 로드 실패");
     };
     document.head.appendChild(script);
-  }, [clientId, location.address, location.lat, location.lng, markers]);
+  }, [clientId, location.address, location.lat, location.lng, markers, primaryTarget]);
 
   if (clientId) {
     return (
@@ -140,6 +150,9 @@ export function MapView({ location, markers }: Props) {
         <div ref={mapRef} className="h-96 rounded-lg border border-ink/15 bg-white" aria-label="네이버 지도" />
         <div className="absolute left-3 top-3 rounded-md border border-ink/10 bg-white/95 px-3 py-2 text-xs font-bold text-ink shadow-sm">
           {mapStatus}
+        </div>
+        <div className="absolute bottom-3 left-3 rounded-md border border-ink/10 bg-white/95 px-3 py-2 text-xs font-bold text-ink/65 shadow-sm">
+          대상 주소 1개 표시 · 주변 실거래 표본 {comparableCount}건은 시세 카드에서 비교
         </div>
       </div>
     );
@@ -163,7 +176,7 @@ export function MapView({ location, markers }: Props) {
         <div className="absolute left-5 top-5 max-w-[18rem] rounded-md border border-ink/10 bg-white/95 p-3 text-sm shadow-panel">
           지도 API 키가 없거나 좌표 조회가 실패하면 대체 좌표와 주변 표본 분포를 표시합니다.
         </div>
-        {markers.slice(0, 6).map((marker, index) => (
+        {[primaryTarget].map((marker, index) => (
           <div
             key={marker.id}
             className={`absolute grid h-10 w-10 place-items-center rounded-full text-[0.68rem] font-black text-white shadow-panel ring-4 ring-white/70 ${
@@ -177,7 +190,7 @@ export function MapView({ location, markers }: Props) {
         ))}
       </div>
       <p className="mt-3 text-sm font-medium text-ink/65">
-        중심 좌표: {location.lat.toFixed(4)}, {location.lng.toFixed(4)} · 표본 {Math.max(0, markers.length - 1)}건
+        중심 좌표: {location.lat.toFixed(4)}, {location.lng.toFixed(4)} · 주변 실거래 표본 {comparableCount}건은 시세 비교에만 사용
       </p>
     </section>
   );
