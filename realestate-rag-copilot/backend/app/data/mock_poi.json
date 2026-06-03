@@ -1,5 +1,0 @@
-[
-  {"id": "poi-1", "name": "마포구청역", "type": "station", "lat": 37.5635, "lng": 126.9034},
-  {"id": "poi-2", "name": "성산시장", "type": "market", "lat": 37.5648, "lng": 126.9101},
-  {"id": "poi-3", "name": "강남역", "type": "station", "lat": 37.4979, "lng": 127.0276}
-]

@@ -13,18 +13,21 @@
 ## 기대 흐름
 
 1. 사용자가 입력값을 확인하고 `리스크 분석`을 누른다.
-2. 프론트엔드가 FastAPI `/analyze`로 요청한다.
-3. 백엔드는 주소를 mock 좌표로 변환한다.
-4. SearchAgent가 주변 mock 거래를 찾고 평균 보증금을 계산한다.
-5. RiskAgent가 시세 차이, 등기부등본 미확인, 보증보험 미확인을 점수화한다.
-6. RagEvidenceAgent가 로컬 체크리스트 문서에서 관련 근거를 찾는다.
-7. ReportAgent가 한국어 리포트 JSON을 만든다.
-8. ValidationAgent가 단정적 표현을 점검한다.
-9. 화면에 위험도 카드, 핵심 근거, 시세 비교, 지도 placeholder, 다음 액션이 표시된다.
+2. 프론트엔드가 Next.js Route Handler `POST /api/analyze`로 요청한다.
+3. Route Handler가 빈 분석 skeleton에서 출발해 각 단계 결과를 누적한다.
+4. RAG Evidence Agent가 체크리스트 근거를 첨부한다.
+5. Location Context Agent가 VWorld/네이버 지오코딩으로 좌표를 확정한다.
+6. Market Data Agent가 법정동코드를 조회하고 data.go.kr 전월세/매매 실거래가를 가져온다.
+7. Building Register Agent가 건축HUB에서 건축물대장 요약을 가져온다.
+8. Registry Agent가 CODEF 등기부등본 가능 여부를 확인한다 (자동 분석에서는 권리관계 원문 조회 생략, 별도 `/api/registry`에서 사용자 명시 승인 후 호출).
+9. Search Context Agent가 네이버 웹/뉴스 검색으로 외부 맥락을 모은다.
+10. Risk Scoring Agent가 실거래 표본·전세가율·미확인 권리관계를 반영해 위험 점수를 산출(보수적 floor 포함).
+11. Report Agent가 리포트 섹션을 정리하고 Validation Agent가 단정 표현을 점검한다.
+12. 화면에 위험도 카드, 데이터 출처 상태 배지, 에이전트 추적 타임라인, 핵심 근거, 시세 비교, 지도, 등기부등본 카드, 다음 액션이 표시된다.
 
 ## 발표 포인트
 
-- RAG는 "왜 조심해야 하는지"의 근거를 제공한다.
-- Agent 구조는 검색, 점수화, 근거 수집, 리포트, 검증 단계를 분리한다.
-- 실제 API 키가 없어도 mock mode로 전체 데모가 가능하다.
+- 외부 API 키가 미설정이거나 실패하면 `data_statuses`에 `missing`/`fallback`/`failed`로 명시되고, mock 숫자로 덮어쓰지 않는다.
+- 등기부등본 자동 열람은 수수료 발생 가능성을 고려해 사용자 명시 승인 후 별도 엔드포인트에서만 실행한다.
+- Agent 구조는 위치 맥락, 시세, 건축물대장, 등기부등본, 검색, 위험 점수, 리포트, 검증 단계를 분리하고 각 단계 트레이스가 응답에 포함된다.
 - 결과는 계약 승인/거절이 아니라 추가 확인을 돕는 참고 리포트다.

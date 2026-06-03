@@ -1,30 +1,13 @@
 # 트러스트 아크(Trust Ark) - 부동산 RAG 의사결정 코파일럿
 
-주소와 계약 조건을 입력하면 mock 거래 데이터, 로컬 RAG 체크리스트, 간단한 Agent Orchestrator를 사용해 계약 전 리스크 리포트를 생성하는 MVP입니다.
+주소와 계약 조건을 입력하면 외부 데이터 소스(네이버 지오코딩, VWorld, data.go.kr 실거래가, CODEF 등기부등본 등)와 로컬 RAG 체크리스트, Next.js 기반 Agent Runtime을 통해 계약 전 리스크 리포트를 생성하는 MVP입니다.
 
 ## 구성
 
-- `backend`: FastAPI API 서버
-- `frontend`: Next.js + TypeScript + Tailwind CSS 웹 앱
-- `docs`: 발표 데모 시나리오
+- `frontend`: Next.js + TypeScript + Tailwind CSS 웹 앱 (분석 API 라우트와 Agent Runtime 포함)
+- `docs`: 발표 데모 시나리오 및 아키텍처 다이어그램
 
-## Backend 실행
-
-```bash
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-확인:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-## Frontend 실행
+## 실행
 
 ```bash
 cd frontend
@@ -34,18 +17,11 @@ npm run dev
 
 브라우저에서 `http://localhost:3000`을 엽니다.
 
-## Mock Mode
+## 분석 API
 
-기본값은 mock mode입니다.
+분석 파이프라인은 Next.js Route Handler로 제공됩니다.
 
-- 주소는 mock 좌표로 변환됩니다.
-- 거래 데이터는 `backend/app/data/mock_transactions.json`을 사용합니다.
-- RAG 근거는 `backend/app/data/rag_docs/jeonse_risk_checklist.md`를 검색합니다.
-- `NEXT_PUBLIC_NAVER_MAPS_CLIENT_ID`가 비어 있으면 지도 placeholder가 표시됩니다.
-
-## API
-
-`POST /analyze`
+`POST /api/analyze`
 
 ```json
 {
@@ -59,15 +35,15 @@ npm run dev
 }
 ```
 
-응답에는 위험도, 위험 점수, 핵심 근거, 시세 비교, 지도 marker, 다음 액션, 주의 문구가 포함됩니다.
+응답에는 위험도, 위험 점수, 핵심 근거, 시세 비교, 지도 marker, 데이터 출처 상태(`data_statuses`), 에이전트 추적(`agent_traces`), 다음 액션, 주의 문구가 포함됩니다.
+
+추가로 `POST /api/registry`는 수수료 발생 가능성을 사용자가 명시적으로 승인한 후 CODEF 등기부등본을 열람하는 별도 엔드포인트입니다.
+
+## 환경변수
+
+`.env.example`을 참고해 `frontend/.env.local`에 외부 API 키를 채워 넣습니다. 키가 비어 있는 경우 해당 단계는 `data_statuses`에 `fallback` / `missing` 상태로 표기됩니다.
 
 ## 테스트
-
-```bash
-cd backend
-python -m pytest
-python -m compileall app
-```
 
 ```bash
 cd frontend

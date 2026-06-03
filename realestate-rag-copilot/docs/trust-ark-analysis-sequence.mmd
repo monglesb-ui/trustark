@@ -1,32 +1,45 @@
 sequenceDiagram
     participant User as 사용자
     participant FE as Next.js 화면
-    participant API as FastAPI /analyze
-    participant OR as Orchestrator
-    participant DA as SearchAgent
-    participant RA as RiskAgent
-    participant RAG as RagEvidenceAgent
-    participant RP as ReportAgent
-    participant VA as ValidationAgent
+    participant API as POST /api/analyze
+    participant RAG as RAG Evidence
+    participant LOC as Location Context
+    participant MKT as Market Data
+    participant BLD as Building Register
+    participant REG as Registry
+    participant SRC as Search Context
+    participant RISK as Risk Scoring
+    participant RP as Report
+    participant VA as Validation
 
     User->>FE: 주소/계약 조건 입력
-    FE->>API: POST /analyze
-    API->>OR: 분석 요청 전달
+    FE->>API: POST /api/analyze
+    API->>RAG: 체크리스트 근거 수집
+    RAG-->>API: rag_docs 근거
 
-    OR->>DA: mock 거래 데이터 검색
-    DA-->>OR: 주변 거래, 평균 시세, marker
+    API->>LOC: VWorld/네이버 지오코딩
+    LOC-->>API: 좌표 / 법정동 후보
 
-    OR->>RA: 위험 점수 계산
-    RA-->>OR: risk_score, risk_level, 위험 근거
+    API->>MKT: 법정동코드 + 전월세/매매 실거래가
+    MKT-->>API: 단지/지역 시세 요약 · diagnostics
 
-    OR->>RAG: 로컬 문서 검색
-    RAG-->>OR: 체크리스트 근거
+    API->>BLD: 건축HUB 건축물대장
+    BLD-->>API: 건축물대장 요약
 
-    OR->>RP: 리포트 JSON 생성
-    RP-->>OR: summary, evidence, next_actions
+    API->>REG: CODEF 등기부등본 가능 여부 (자동 분석에서는 권리관계 원문 조회 생략)
+    REG-->>API: 진단 / next_actions
 
-    OR->>VA: 안전 표현 검증
+    API->>SRC: 네이버 웹/뉴스 검색 맥락
+    SRC-->>API: 외부 맥락 근거
+
+    API->>RISK: 위험 점수 산출 + 보수적 floor
+    RISK-->>API: risk_score, risk_level, 위험 근거
+
+    API->>RP: 리포트 섹션 구성
+    RP-->>API: summary, evidence, next_actions
+
+    API->>VA: 단정 표현 검증
     VA-->>API: 최종 리포트
 
-    API-->>FE: 분석 결과 JSON
-    FE-->>User: 위험도/지도/근거/액션 표시
+    API-->>FE: 분석 결과 JSON (data_statuses · agent_traces 포함)
+    FE-->>User: 위험도/상태 배지/지도/근거/액션 표시

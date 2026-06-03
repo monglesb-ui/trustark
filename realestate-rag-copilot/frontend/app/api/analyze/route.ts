@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildMockAnalysis } from "@/lib/mock-analysis";
+import { buildAnalysisSkeleton } from "@/lib/analysis-skeleton";
 import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types";
 import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus, MapMarker } from "@/lib/types";
 import { createTraceRecorder, withTraces } from "@/lib/server/agent-runtime/trace";
@@ -272,8 +272,8 @@ export async function POST(request: Request) {
   const trace = createTraceRecorder();
 
   try {
-    const mockReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
-    const ragResult = runRagEvidenceAgent({ report: mockReport, payload, trace });
+    const skeletonReport = applyPropertyTypeContext(buildAnalysisSkeleton(payload), payload);
+    const ragResult = runRagEvidenceAgent({ report: skeletonReport, payload, trace });
     const geocode = await runLocationContextAgent({ payload, trace });
     const geocodedReport = applyGeocoding(ragResult.report, geocode, payload);
     const legalDongQuery =
@@ -342,7 +342,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(withTraces(finalReport, trace.traces));
   } catch (error) {
-    const fallbackReport = applyPropertyTypeContext(buildMockAnalysis(payload), payload);
     const message = error instanceof Error ? error.message : "분석 처리 중 서버 오류가 발생했습니다.";
     recordRuntimeFallback({ trace, inputSummary: payload.address, outputSummary: message.slice(0, 160) });
 
@@ -350,14 +349,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ message }, { status: 502 });
     }
 
-    return NextResponse.json(withTraces(runRiskScoringAgent({ report: withStatus({
-      ...fallbackReport,
-      warnings: [`분석 API 일부 단계에서 오류가 발생해 대체 분석으로 전환했습니다: ${message}`, ...fallbackReport.warnings]
-    }, {
-      id: "api-runtime",
-      label: "분석 API 런타임",
-      status: "failed",
-      detail: message.slice(0, 120)
-    }), payload, trace }), trace.traces));
+    const skeleton = applyPropertyTypeContext(buildAnalysisSkeleton(payload), payload);
+    const ragFallback = runRagEvidenceAgent({ report: skeleton, payload, trace });
+    const failedDetail = message.slice(0, 120);
+    const failedStatuses: DataSourceStatus[] = [
+      { id: "geocoding", label: "지도 지오코딩", status: "failed", detail: failedDetail },
+      { id: "legal-dong", label: "법정동코드", status: "failed", detail: "런타임 오류로 미실행" },
+      { id: "rent-market", label: "전월세 실거래가", status: "failed", detail: "런타임 오류로 미실행" },
+      { id: "sale-market", label: "매매 실거래가", status: "failed", detail: "런타임 오류로 미실행" },
+      { id: "api-runtime", label: "분석 API 런타임", status: "failed", detail: failedDetail }
+    ];
+    const flagged: AnalyzeResponse = failedStatuses.reduce((acc, status) => withStatus(acc, status), ragFallback.report);
+    const warned: AnalyzeResponse = {
+      ...flagged,
+      warnings: [`분석 API 런타임 오류로 외부 데이터 단계를 건너뛰었습니다: ${message}`, ...flagged.warnings]
+    };
+    const scored = runRiskScoringAgent({ report: warned, payload, trace });
+    const composed = runReportAgent({ report: scored, trace });
+    const validated = runValidationAgent({ report: composed, trace });
+    return NextResponse.json(withTraces(validated, trace.traces));
   }
 }

@@ -7,7 +7,6 @@ function flag(value: string | undefined, defaultValue: boolean) {
 
 export const serverEnv = {
   appEnv: process.env.APP_ENV ?? "local",
-  trustArkApiBaseUrl: process.env.TRUST_ARK_API_BASE_URL,
   useMockFallback: flag(process.env.TRUST_ARK_USE_MOCK_FALLBACK, true),
 
   openaiApiKey: process.env.OPENAI_API_KEY,
