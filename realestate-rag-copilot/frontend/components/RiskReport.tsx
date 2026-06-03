@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getPropertyTypeLabel } from "@/lib/property-types";
-import type { AgentTrace, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
+import { runRegistryLookup } from "@/lib/api";
+import type { AgentTrace, AnalyzeRequest, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
 import { EvidenceList } from "./EvidenceList";
 import { MapView } from "./MapView";
 
@@ -613,8 +614,19 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
   );
 }
 
-export function RiskReport({ report }: { report: AnalyzeResponse }) {
+export function RiskReport({
+  report,
+  payload,
+  onReportUpdate
+}: {
+  report: AnalyzeResponse;
+  payload?: AnalyzeRequest | null;
+  onReportUpdate?: (report: AnalyzeResponse) => void;
+}) {
   const [layout, setLayout] = useState<"dashboard" | "document" | "agents">("dashboard");
+  const [registryConfirmOpen, setRegistryConfirmOpen] = useState(false);
+  const [registryLoading, setRegistryLoading] = useState(false);
+  const [registryError, setRegistryError] = useState<string | null>(null);
   const tone =
     report.risk_score >= 81
       ? "border-clay/45 bg-clay/10 text-clay"
@@ -652,6 +664,7 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
   const buildingRegister = report.building_register;
   const registry = report.registry;
   const registryVerified = registry?.status === "confirmed";
+  const canRunRegistryLookup = Boolean(payload && onReportUpdate);
   const confidenceItems = [
     ["실거래 표본", `${report.market_comparison.sample_size}건`, report.market_comparison.match_mode === "complex" ? "단지 매칭" : "지역 참고"],
     ["RAG 근거", `${ragEvidence.length || report.evidence.length}개`, "보통"],
@@ -659,8 +672,66 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
   ];
   const agentReports = useMemo(() => buildAgentReports(report, ragEvidence.length), [report, ragEvidence.length]);
 
+  async function handleRegistryLookup() {
+    if (!payload || !onReportUpdate) return;
+    setRegistryLoading(true);
+    setRegistryError(null);
+    try {
+      const updated = await runRegistryLookup(payload, report);
+      onReportUpdate(updated);
+      setRegistryConfirmOpen(false);
+    } catch (error) {
+      setRegistryError(error instanceof Error ? error.message : "등기부등본 열람 실행 중 오류가 발생했습니다.");
+    } finally {
+      setRegistryLoading(false);
+    }
+  }
+
   return (
     <div className="grid gap-5">
+      {registryConfirmOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/45 px-4">
+          <div className="w-full max-w-lg rounded-lg border border-ink/10 bg-white p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brass/15 text-brass">
+                <FileKey2 aria-hidden="true" size={20} />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-ink">등기부등본 열람을 실행할까요?</h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-ink/65">
+                  이 단계는 자동 분석과 분리된 별도 실행입니다. CODEF와 대법원 등기 열람 과정에서 수수료, 주소 선택,
+                  추가인증이 발생할 수 있고, 화면과 문서에는 민감정보를 마스킹해 반영합니다.
+                </p>
+              </div>
+            </div>
+            {registryError ? (
+              <p role="alert" className="mt-4 rounded-md border border-clay/30 bg-clay/10 p-3 text-sm font-bold text-clay">
+                {registryError}
+              </p>
+            ) : null}
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRegistryConfirmOpen(false)}
+                disabled={registryLoading}
+                className="inline-flex min-h-10 items-center rounded-md border border-ink/10 bg-white px-4 text-sm font-black text-ink/70"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleRegistryLookup}
+                disabled={registryLoading}
+                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-ink px-4 text-sm font-black text-white disabled:opacity-55"
+              >
+                {registryLoading ? <CircleDashed aria-hidden="true" size={16} className="animate-spin" /> : <FileKey2 aria-hidden="true" size={16} />}
+                동의 후 실행
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <section className="dashboard-panel flex flex-wrap items-center gap-3 p-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-md bg-moss text-white">
           <FileText aria-hidden="true" size={22} />
@@ -1013,11 +1084,27 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
                 <p className="mt-1 text-xs font-bold text-ink/45">{registry?.address ?? report.location.address}</p>
               </div>
             </div>
-            <span className={`rounded-md px-2.5 py-1 text-xs font-black ${
-              registryVerified ? "bg-moss/10 text-moss" : "bg-brass/10 text-brass"
-            }`}>
-              {registryVerified ? "민감정보 마스킹 완료" : registry?.status === "requires_user_action" ? "별도 실행 필요" : "원문 확인 필요"}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`rounded-md px-2.5 py-1 text-xs font-black ${
+                registryVerified ? "bg-moss/10 text-moss" : "bg-brass/10 text-brass"
+              }`}>
+                {registryVerified ? "민감정보 마스킹 완료" : registry?.status === "requires_user_action" ? "별도 실행 필요" : "원문 확인 필요"}
+              </span>
+              {!registryVerified ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegistryError(null);
+                    setRegistryConfirmOpen(true);
+                  }}
+                  disabled={!canRunRegistryLookup || registryLoading}
+                  className="inline-flex min-h-8 items-center gap-1 rounded-md border border-moss/20 bg-moss/10 px-3 text-xs font-black text-moss disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {registryLoading ? <CircleDashed aria-hidden="true" size={14} className="animate-spin" /> : <FileKey2 aria-hidden="true" size={14} />}
+                  등기 열람 실행
+                </button>
+              ) : null}
+            </div>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
             <div className="metric-tile p-4">
@@ -1040,6 +1127,11 @@ export function RiskReport({ report }: { report: AnalyzeResponse }) {
           <p className="mt-4 rounded-md border border-brass/20 bg-brass/10 p-3 text-xs font-bold leading-5 text-ink/65">
             {registry?.note ?? "등기부등본 원문 권리관계가 아직 확보되지 않았습니다. CODEF 직접인증 입력값 또는 원문 등본 확인이 필요합니다."}
           </p>
+          {registryError ? (
+            <p role="alert" className="mt-3 rounded-md border border-clay/30 bg-clay/10 p-3 text-xs font-bold leading-5 text-clay">
+              {registryError}
+            </p>
+          ) : null}
         </div>
       </section>
 

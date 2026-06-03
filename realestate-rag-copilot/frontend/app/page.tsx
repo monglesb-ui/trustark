@@ -366,6 +366,7 @@ function AnalyzingPanel({ activeStep, visibleLogCount }: { activeStep: number; v
 
 export default function Home() {
   const [report, setReport] = useState<AnalyzeResponse | null>(null);
+  const [lastPayload, setLastPayload] = useState<AnalyzeRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AnalysisStage>("idle");
@@ -382,6 +383,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     setReport(null);
+    setLastPayload(payload);
     setStage("analyzing");
     setActiveStep(0);
     setVisibleLogCount(0);
@@ -485,7 +487,7 @@ export default function Home() {
             {stage === "analyzing" ? (
               <AnalyzingPanel activeStep={activeStep} visibleLogCount={visibleLogCount} />
             ) : report ? (
-              <RiskReport report={report} />
+              <RiskReport report={report} payload={lastPayload} onReportUpdate={setReport} />
             ) : (
               <section className="dashboard-panel grid min-h-72 place-items-center p-8 text-center text-ink/68">
                 <div>
