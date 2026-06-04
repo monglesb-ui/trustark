@@ -26,6 +26,7 @@ import { runSummarizerAgent } from "@/lib/server/agent-runtime/agents/summarizer
 import { runCompetitionDensityAgent } from "@/lib/server/agent-runtime/agents/competition-density-agent";
 import { runSchoolZoneAgent } from "@/lib/server/agent-runtime/agents/school-zone-agent";
 import { runPropertyValueAgent } from "@/lib/server/agent-runtime/agents/property-value-agent";
+import { runBuildingRegisterLightAgent } from "@/lib/server/agent-runtime/agents/building-register-light-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -418,6 +419,9 @@ export async function POST(request: Request) {
         ? await runPropertyValueAgent({ payload, trace })
         : null;
 
+    // 6) Building Register — 창업·상가 양쪽에서 사용 (부동산 BuildingRegister 재활용)
+    const buildingRegisterView = await runBuildingRegisterLightAgent({ payload, geocode, trace });
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -461,6 +465,7 @@ export async function POST(request: Request) {
       commercial_findings: propertyValueFinding
         ? { property_value: propertyValueFinding }
         : undefined,
+      building_register: buildingRegisterView ?? base.building_register,
       location: geocode.result
         ? {
             lat: geocode.result.lat,

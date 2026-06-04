@@ -190,6 +190,65 @@ function CompetitionDensityCard({
   );
 }
 
+function BuildingRegisterLightCard({
+  view
+}: {
+  view: AnalyzeResponse["building_register"];
+}) {
+  if (!view) return null;
+  const fields: Array<[string, string]> = [
+    ["주용도", view.mainPurpose ?? "미확인"],
+    ["지상 층수", view.groundFloors != null ? `${view.groundFloors}층` : "미확인"],
+    ["지하 층수", view.undergroundFloors != null ? `${view.undergroundFloors}층` : "미확인"],
+    ["사용승인일", view.useApprovalDate ?? "미확인"]
+  ];
+  const violationTone =
+    view.violationBuilding === true
+      ? "border-clay/45 bg-clay/10 text-clay"
+      : view.violationBuilding === false
+        ? "border-moss/45 bg-moss/10 text-moss"
+        : "border-ink/15 bg-ink/5 text-ink/55";
+  const violationLabel =
+    view.violationBuilding === true ? "위반건축물" : view.violationBuilding === false ? "위반 없음" : "여부 미확인";
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성 · 부동산 Agent 재활용
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            건축물대장 · {view.buildingName ?? view.address ?? "건물 정보"}
+          </h3>
+        </div>
+        <span className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-black ${violationTone}`}>
+          {violationLabel}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-4">
+        {fields.map(([label, value]) => (
+          <div key={label} className="rounded-md border border-ink/10 bg-paper p-4">
+            <p className="text-[0.7rem] font-black uppercase text-ink/45">{label}</p>
+            <p className="mt-1 font-serif text-lg font-black text-ink">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {view.roadAddress ? (
+        <p className="mt-4 text-sm leading-6 text-ink/75">
+          <span className="font-bold">도로명: </span>
+          {view.roadAddress}
+        </p>
+      ) : null}
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: 국토교통부 건축HUB(BuildingHUB) 표제부 API. 부동산 모드의 BuildingRegister Agent를 동일하게 호출.
+      </p>
+    </section>
+  );
+}
+
 function PropertyValueCard({
   finding
 }: {
@@ -1501,6 +1560,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.commercial_findings?.property_value ? (
         <PropertyValueCard finding={report.commercial_findings.property_value} />
+      ) : null}
+
+      {isPlaceholderMode && report.building_register ? (
+        <BuildingRegisterLightCard view={report.building_register} />
       ) : null}
 
       {!isPlaceholderMode ? (
