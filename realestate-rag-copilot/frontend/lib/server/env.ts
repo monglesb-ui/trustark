@@ -93,7 +93,15 @@ export const serverEnv = {
     process.env.BEARER_TOKEN ??
     process.env.X_BEARER_TOKEN ??
     process.env.X_API_KEY ??
-    process.env.TWITTER_BEARER_TOKEN
+    process.env.TWITTER_BEARER_TOKEN,
+
+  // 카카오 로컬 API — REST API 키 (서버 전용)
+  // NEXT_PUBLIC_ 접두 키는 JavaScript SDK 키일 수 있으나 일단 fallback으로 사용 시도
+  kakaoRestApiKey:
+    process.env.KAKAO_REST_API_KEY ??
+    process.env.KAKAO_API_KEY ??
+    process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY ??
+    process.env.NEXT_PUBLIC_KAKAO_MAP_KEY
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {

@@ -11,9 +11,35 @@ import {
   type CommercialStoreRow
 } from "@/lib/server/commercial-area-api";
 import { searchNaverLocal, type NaverLocalItem } from "@/lib/server/naver-search";
+import { searchKakaoLocalPaged, type KakaoPlace } from "@/lib/server/kakao-local";
 import { extractSeoulSigungu } from "@/lib/server/seoul-districts";
-import { geocodeAddress, type GeocodeResult } from "@/lib/server/vworld";
+import {
+  geocodeAddress,
+  searchVworldPlaces,
+  type GeocodeResult,
+  type VworldPlace
+} from "@/lib/server/vworld";
 import type { TraceRecorder } from "../trace";
+
+function kakaoPlaceToRow(place: KakaoPlace): CommercialStoreRow {
+  return {
+    bizesNm: place.place_name,
+    indsSclsNm: place.category_group_name ?? place.category_name,
+    indsMclsNm: place.category_name,
+    rdnmAdr: place.road_address_name,
+    lnoAdr: place.address_name
+  };
+}
+
+function vworldPlaceToRow(place: VworldPlace): CommercialStoreRow {
+  return {
+    bizesNm: place.title,
+    indsSclsNm: place.category,
+    indsMclsNm: place.category,
+    rdnmAdr: place.roadAddress,
+    lnoAdr: place.address
+  };
+}
 
 /** Haversine 거리 (미터) */
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -135,16 +161,117 @@ export async function runCompetitionDensityAgent({
       TOOL,
       inputSummary,
       async () => {
-        // 1차: 입력 radius로 시도
-        let result = await fetchStoresInRadius({
+        let usedKakao = false;
+        let usedVworld = false;
+        let vworldDiagnostic = "";
+
+        // ★ 카카오 로컬 키워드 검색 (좌표+반경+카테고리 직접 지원, 최대 45건/검색)
+        // 가장 정확. 카페면 CE7 카테고리 그룹 사용.
+        const kakaoCategory =
+          businessType === "cafe" ? "CE7" :
+          businessType === "restaurant" ? "FD6" :
+          businessType === "academy" ? "AC5" :
+          undefined;
+
+        const kakaoResult = await searchKakaoLocalPaged({
+          query: businessLabel,
           cx: lng,
           cy: lat,
           radius: radiusMeters,
-          indsLcls: lcls,
-          numOfRows: 1000
+          categoryGroupCode: kakaoCategory,
+          sort: "distance"
         });
+
+        // 0차: VWorld Search API (POI + 좌표+반경 직접 검색)를 먼저 시도
+        // 카페면 "카페"·"커피" 두 키워드 시도해서 누적
+        const vworldQueries = businessType === "cafe" ? ["카페", "커피전문점"] : [businessLabel];
+        const vworldPlacesAll: VworldPlace[] = [];
+        for (const q of vworldQueries) {
+          const r = await searchVworldPlaces({
+            query: q,
+            cx: lng,
+            cy: lat,
+            radius: radiusMeters,
+            size: 100
+          });
+          if (r.ok && r.places.length > 0) {
+            vworldPlacesAll.push(...r.places);
+            vworldDiagnostic += `${q}=${r.places.length}건; `;
+          }
+        }
+        // 중복 제거 (title + address)
+        const vworldDedup = Array.from(
+          new Map(vworldPlacesAll.map((p) => [`${p.title}|${p.address}`, p])).values()
+        );
+        const vworldFiltered = vworldDedup.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+
+        let result: Awaited<ReturnType<typeof fetchStoresInRadius>> | {
+          ok: boolean;
+          items: CommercialStoreRow[];
+          totalCount: number;
+          rawText: undefined;
+          attempt: {
+            endpoint: string;
+            urlRedacted: string;
+            httpStatus?: number;
+            totalCount?: number;
+            rowCount?: number;
+            durationMs: number;
+          };
+        };
         let effectiveRadius = radiusMeters;
         let fallbackNote = "";
+        let primarySource = "";
+
+        // ★ 1순위 — 카카오 로컬 (가장 정확, 카테고리+반경 직접 지원)
+        if (kakaoResult.ok && kakaoResult.places.length > 0) {
+          result = {
+            ok: true,
+            items: kakaoResult.places.map(kakaoPlaceToRow),
+            totalCount: kakaoResult.places.length,
+            rawText: undefined,
+            attempt: {
+              endpoint: "kakao-local",
+              urlRedacted: `q=${businessLabel} cat=${kakaoCategory ?? "n/a"} r=${radiusMeters}m`,
+              httpStatus: kakaoResult.attempt.httpStatus,
+              totalCount: kakaoResult.total,
+              rowCount: kakaoResult.places.length,
+              durationMs: kakaoResult.attempt.durationMs
+            }
+          };
+          usedKakao = true;
+          primarySource = "Kakao Local";
+          fallbackNote = `(Kakao Local "${businessLabel}" ${kakaoCategory ?? ""} · 반경 ${radiusMeters}m 이내 ${kakaoResult.places.length}건 · 거리순 정렬)`;
+        }
+        // 2순위 — VWorld Search (POI)
+        else if (vworldFiltered.length > 0) {
+          result = {
+            ok: true,
+            items: vworldFiltered.map(vworldPlaceToRow),
+            totalCount: vworldFiltered.length,
+            rawText: undefined,
+            attempt: {
+              endpoint: "vworld-search",
+              urlRedacted: `queries=[${vworldQueries.join(",")}]`,
+              httpStatus: 200,
+              totalCount: vworldFiltered.length,
+              rowCount: vworldFiltered.length,
+              durationMs: 0
+            }
+          };
+          usedVworld = true;
+          primarySource = "VWorld Search";
+          fallbackNote = `(VWorld POI · ${vworldQueries.join("+")} · ${radiusMeters}m 이내 ${vworldFiltered.length}건)`;
+        } else {
+          // 3순위 — 소상공인 상권 API
+          result = await fetchStoresInRadius({
+            cx: lng,
+            cy: lat,
+            radius: radiusMeters,
+            indsLcls: lcls,
+            numOfRows: 1000
+          });
+        }
 
         // 2차 fallback: 1000m로 확장
         if (result.ok && result.items.length === 0 && radiusMeters < 1000) {
@@ -298,9 +425,13 @@ export async function runCompetitionDensityAgent({
           density_label: density.label,
           density_score: density.score,
           sample_stores: sampleStores,
-          source: usedNaverFallback
-            ? "Naver Local + vworld geocode (사용자 좌표 기준 Haversine 거리)"
-            : "소상공인진흥공단 상권정보 API",
+          source: usedKakao
+            ? "Kakao Local (좌표+반경+카테고리 직접 검색, 거리순 정렬)"
+            : usedVworld
+              ? "VWorld Search POI (좌표+반경 검색)"
+              : usedNaverFallback
+                ? "Naver Local + vworld geocode (사용자 좌표 기준 Haversine 거리)"
+                : "소상공인진흥공단 상권정보 API",
           diagnostic: usedNaverFallback
             ? `${summarizeCommercialAttempt(result.attempt)} · 거리: ${naverDiagnostic}`
             : summarizeCommercialAttempt(result.attempt),
