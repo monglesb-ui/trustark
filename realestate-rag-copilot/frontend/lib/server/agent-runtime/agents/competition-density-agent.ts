@@ -126,21 +126,35 @@ export async function runCompetitionDensityAgent({
           }
         }
 
-        // 3차 fallback: 자치구 단위 호출 (좌표 API가 외곽 데이터 미보유한 경우)
-        if (result.ok && result.items.length === 0) {
-          const { sigungu, signguCd } = extractSeoulSigungu(payload.address ?? "");
-          if (signguCd) {
-            const byDistrict = await fetchStoresByUpjong({
-              indsLcls: lcls,
-              ctprvnCd: "11",
-              signguCd,
-              numOfRows: 1000
-            });
-            if (byDistrict.ok && byDistrict.items.length > 0) {
-              result = byDistrict;
-              effectiveRadius = 0; // 자치구 전체
-              fallbackNote = `(반경 검색 0건 → ${sigungu ?? "자치구"} 전체로 fallback)`;
-            }
+        // 3차 fallback: 자치구 중심 좌표로 1000m 재호출 (API 외곽 데이터 누락 대응)
+        const { sigungu, signguCd, center } = extractSeoulSigungu(payload.address ?? "");
+        if (result.ok && result.items.length === 0 && center) {
+          const recentered = await fetchStoresInRadius({
+            cx: center.lng,
+            cy: center.lat,
+            radius: 1000,
+            indsLcls: lcls,
+            numOfRows: 1000
+          });
+          if (recentered.ok && recentered.items.length > 0) {
+            result = recentered;
+            effectiveRadius = 1000;
+            fallbackNote = `(${sigungu ?? "자치구"} 중심 좌표로 재호출 — 입력 좌표 외곽 데이터 누락 대응)`;
+          }
+        }
+
+        // 4차 fallback: 자치구 단위 호출 (좌표 무관)
+        if (result.ok && result.items.length === 0 && signguCd) {
+          const byDistrict = await fetchStoresByUpjong({
+            indsLcls: lcls,
+            ctprvnCd: "11",
+            signguCd,
+            numOfRows: 1000
+          });
+          if (byDistrict.ok && byDistrict.items.length > 0) {
+            result = byDistrict;
+            effectiveRadius = 0;
+            fallbackNote = `(반경 검색 모두 0건 → ${sigungu ?? "자치구"} 전체로 fallback)`;
           }
         }
 

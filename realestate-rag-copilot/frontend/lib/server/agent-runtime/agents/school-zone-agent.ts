@@ -192,7 +192,7 @@ export async function runSchoolZoneAgent({
       (finding) => ({
         status: finding && finding.total_schools_in_district > 0 ? "success" : "missing",
         outputSummary: finding
-          ? `${finding.district} 학교 ${finding.total_schools_in_district}건 · ${finding.business_type_label} 영향=${finding.impact_level}`
+          ? `${finding.district} 학교 ${finding.total_schools_in_district}건 · ${finding.business_type_label} 영향=${finding.impact_level} · ${finding.diagnostic.slice(0, 150)}`
           : "학교 정보 없음"
       })
     );

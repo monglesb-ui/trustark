@@ -93,12 +93,23 @@ export async function runLocalContextLightAgent({
         "xRecentSearch",
         queries.web,
         () => searchXRecent({ query: `${queries.web} -is:retweet lang:ko`, maxResults: 10 }),
-        (result) => ({
-          status: result.ok && result.tweets.length > 0 ? "success" : result.ok ? "missing" : "failed",
-          outputSummary: result.ok
-            ? `X tweets=${result.tweets.length} (${result.attempt.resultCount ?? 0}건)`
-            : `X 실패 · ${result.attempt.error?.slice(0, 80) ?? "unknown"}`
-        })
+        (result) => {
+          if (result.ok) {
+            return {
+              status: result.tweets.length > 0 ? "success" : "missing",
+              outputSummary: `X tweets=${result.tweets.length} (${result.attempt.resultCount ?? 0}건)`
+            };
+          }
+          // 402 CreditsDepleted / 401 Unauthorized 등 — 사용자 환경 이슈로 missing 처리
+          const err = result.attempt.error ?? "";
+          const isQuota = err.includes("402") || err.includes("CreditsDepleted") || err.includes("429");
+          return {
+            status: isQuota ? "missing" : "failed",
+            outputSummary: isQuota
+              ? `X API 한도 소진 (Free tier 월 100건). 유료 plan 필요`
+              : `X 실패 · ${err.slice(0, 80) || "unknown"}`
+          };
+        }
       )
     ]);
 
