@@ -198,8 +198,33 @@ export type PlannerOutput = {
   execution_plan: ExecutionPlanEntry[];
 };
 
+export type DensityLabel = "낮음" | "보통" | "높음" | "매우 높음";
+
+export type CompetitionDensityFinding = {
+  business_type_label: string;
+  radius_meters: number;
+  total_stores: number;          // 업종 필터 통과한 매장 수
+  all_stores_in_radius: number;  // 반경 내 전체 매장 수
+  density_label: DensityLabel;
+  density_score: number;          // 0~100 (높을수록 경쟁 심함)
+  sample_stores: Array<{
+    name: string;
+    category?: string;
+    address?: string;
+  }>;
+  source: string;
+  diagnostic: string;
+  note: string;
+};
+
+export type BusinessPermitFindings = {
+  competition?: CompetitionDensityFinding;
+  // 이후 추가될 항목: zoning, school_zone, license_requirement, building_suitability, youth_protection
+};
+
 export type AnalyzeResponse = {
   requested_mode?: AnalysisMode;
+  business_findings?: BusinessPermitFindings;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

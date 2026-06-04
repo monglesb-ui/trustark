@@ -23,6 +23,7 @@ import { runReportAgent } from "@/lib/server/agent-runtime/agents/report-agent";
 import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-runtime/agents/validation-agent";
 import { runPlannerAgent } from "@/lib/server/agent-runtime/agents/planner-agent";
 import { runSummarizerAgent } from "@/lib/server/agent-runtime/agents/summarizer-agent";
+import { runCompetitionDensityAgent } from "@/lib/server/agent-runtime/agents/competition-density-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -386,17 +387,85 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-  // === Placeholder 모드: 부동산이 아닌 경우 (창업·상가) === //
+  // === 창업·상가 모드: placeholder + 부분 실데이터 (Competition Density 등) === //
   if (payload.mode && payload.mode !== "real_estate") {
     const trace = createTraceRecorder();
-    trace.record(
-      "Validation Agent",
-      "modePlaceholder",
-      `mode=${payload.mode} · address=${payload.address}`,
-      `${payload.mode} 모드는 placeholder 응답으로 처리`,
-      "missing"
-    );
-    return NextResponse.json(withTraces(buildModePlaceholder(payload), trace.traces));
+    const base = buildModePlaceholder(payload);
+
+    // 1) 좌표 변환 (부동산 모드의 Location Context Agent 재사용)
+    const geocode = await runLocationContextAgent({ payload, trace });
+
+    // 2) Competition Density — business_permit 모드에서만 의미 있음
+    const competitionFinding =
+      payload.mode === "business_permit"
+        ? await runCompetitionDensityAgent({ payload, geocode, trace, radiusMeters: 500 })
+        : null;
+
+    // base의 data_statuses를 실제 결과로 덮어쓰기
+    const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
+      if (s.id === "geocoding") {
+        return geocode.result
+          ? { ...s, status: "success" as const, detail: `${geocode.result.source} · ${geocode.result.address}` }
+          : { ...s, status: "fallback" as const, detail: "좌표 변환 실패 · 대체 좌표 사용" };
+      }
+      if (s.id === "competition" && competitionFinding) {
+        return {
+          ...s,
+          status: "success" as const,
+          detail: `반경 ${competitionFinding.radius_meters}m ${competitionFinding.business_type_label} ${competitionFinding.total_stores}건 · ${competitionFinding.density_label}`
+        };
+      }
+      return s;
+    });
+
+    const enrichedEvidence = competitionFinding
+      ? [
+          ...base.evidence,
+          {
+            title: `반경 ${competitionFinding.radius_meters}m ${competitionFinding.business_type_label} 밀집도`,
+            description: competitionFinding.note,
+            source: "commercial_area:store_radius"
+          }
+        ]
+      : base.evidence;
+
+    const enriched: AnalyzeResponse = {
+      ...base,
+      data_statuses: enrichedStatuses,
+      evidence: enrichedEvidence,
+      business_findings: competitionFinding
+        ? { competition: competitionFinding }
+        : undefined,
+      location: geocode.result
+        ? {
+            lat: geocode.result.lat,
+            lng: geocode.result.lng,
+            address: geocode.result.address
+          }
+        : base.location,
+      sections: {
+        ...base.sections,
+        confirmed_facts: [
+          `검토 모드: ${payload.mode === "business_permit" ? "창업·영업 적합성" : "상가 활용성"}`,
+          payload.business_type
+            ? `검토 업종: ${payload.business_type}`
+            : payload.commercial_purpose
+              ? `검토 목적: ${payload.commercial_purpose}`
+              : "",
+          `입력 주소: ${payload.address}`,
+          geocode.result ? `좌표 변환: ${geocode.result.lat.toFixed(4)}, ${geocode.result.lng.toFixed(4)}` : "좌표 변환: 실패",
+          ...(competitionFinding
+            ? [
+                `반경 500m ${competitionFinding.business_type_label} ${competitionFinding.total_stores}건 (전체 ${competitionFinding.all_stores_in_radius}건)`,
+                `동종업종 밀집도 평가: ${competitionFinding.density_label}`
+              ]
+            : []),
+          ...base.sections.confirmed_facts
+        ].filter(Boolean)
+      }
+    };
+
+    return NextResponse.json(withTraces(enriched, trace.traces));
   }
 
   // real_estate 모드의 optional 필드를 안전 기본값으로 normalize

@@ -115,6 +115,81 @@ const PLAN_PRIORITY_CLASS: Record<string, string> = {
   optional: "bg-stone-200 text-stone-600 border border-stone-300"
 };
 
+function CompetitionDensityCard({
+  finding
+}: {
+  finding: NonNullable<AnalyzeResponse["business_findings"]>["competition"];
+}) {
+  if (!finding) return null;
+  const densityTone =
+    finding.density_label === "매우 높음"
+      ? "border-clay/45 bg-clay/10 text-clay"
+      : finding.density_label === "높음"
+        ? "border-brass/45 bg-brass/10 text-brass"
+        : "border-moss/45 bg-moss/10 text-moss";
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            반경 {finding.radius_meters}m {finding.business_type_label} 밀집도
+          </h3>
+        </div>
+        <span className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-black ${densityTone}`}>
+          {finding.density_label}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">동종업종 매장</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">{finding.total_stores}</p>
+          <p className="mt-1 text-xs font-bold text-ink/55">건 (필터 적용)</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">반경 내 전체 매장</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">{finding.all_stores_in_radius}</p>
+          <p className="mt-1 text-xs font-bold text-ink/55">건 (전 업종)</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">경쟁 점수</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">{finding.density_score}</p>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink/10">
+            <div className="h-full rounded-full bg-current" style={{ width: `${finding.density_score}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-ink/75">{finding.note}</p>
+
+      {finding.sample_stores.length > 0 ? (
+        <div className="mt-4 rounded-md border border-ink/10 bg-white p-4">
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/45">인근 매장 표본</p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-ink/75">
+            {finding.sample_stores.map((store, index) => (
+              <li key={`${store.name}-${index}`} className="flex items-start gap-2">
+                <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-moss" />
+                <span>
+                  <strong className="text-ink">{store.name}</strong>
+                  {store.category ? <span className="text-ink/55"> · {store.category}</span> : null}
+                  {store.address ? <span className="text-ink/45"> · {store.address}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: {finding.source}. 정확한 매출·신규/폐업 추세는 분기별 상권분석 API(VwsmTrdarSelngQq 등) 연동 후 활성화 예정.
+      </p>
+    </section>
+  );
+}
+
 function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] }) {
   if (!planner) return null;
   const hasTags = planner.intent_tags.length > 0;
@@ -1242,7 +1317,13 @@ export function RiskReport({
             </div>
           ) : null}
         </section>
-      ) : (
+      ) : null}
+
+      {isPlaceholderMode && report.business_findings?.competition ? (
+        <CompetitionDensityCard finding={report.business_findings.competition} />
+      ) : null}
+
+      {!isPlaceholderMode ? (
         <section className={`dashboard-panel overflow-hidden border-l-4 p-0 ${tone}`}>
           <div className="grid gap-5 p-5 sm:grid-cols-[1fr_12rem] sm:p-6">
             <div>
@@ -1273,7 +1354,7 @@ export function RiskReport({
             </div>
           </div>
         </section>
-      )}
+      ) : null}
 
       {!isPlaceholderMode && (
       <section className="dashboard-panel p-5">
