@@ -171,11 +171,12 @@ export async function callCommercial<T = Record<string, unknown>>(
     attempt.totalCount = body.totalCount;
     attempt.rowCount = items.length;
 
-    // data.go.kr resultMsg는 서비스별로 NORMAL_SERVICE / NORMAL SERVICE / NORMAL SERVICE. 등으로 다양함
-    // → "NORMAL"로 시작하면 정상으로 간주 (대소문자 무시 + 공백/언더스코어 정규화)
+    // data.go.kr resultMsg 정규화 (NORMAL_SERVICE / NORMAL SERVICE / NORMAL SERVICE. 등)
     const normalizedMsg = header?.resultMsg?.replace(/[_.\s]+/g, " ").trim().toUpperCase();
     const isNormal = !normalizedMsg || normalizedMsg.startsWith("NORMAL");
-    if (!isNormal) {
+    // NODATA_ERROR는 진짜 에러가 아니라 "조건에 맞는 데이터 0건" 정상 응답 — items 빈 배열로 통과
+    const isNoData = normalizedMsg === "NODATA ERROR" || normalizedMsg === "NODATA";
+    if (!isNormal && !isNoData) {
       attempt.error = header?.resultMsg;
       return { ok: false, items, totalCount: body.totalCount ?? 0, rawText: text, attempt };
     }
