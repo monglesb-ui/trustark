@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { fetchSeoulRestaurants, summarizeSeoulAttempt } from "@/lib/server/seoul-open-api";
+import {
+  fetchSeoulRestaurants,
+  fetchSeoulTradeArea,
+  SEOUL_TRADE_AREA_SERVICES,
+  summarizeSeoulAttempt
+} from "@/lib/server/seoul-open-api";
 import { fetchSchools, summarizeNeisAttempt } from "@/lib/server/neis-api";
 import { searchOrdinances, summarizeLawAttempt } from "@/lib/server/law-api";
 import {
@@ -21,6 +26,7 @@ import { serverEnv } from "@/lib/server/env";
 
 export async function GET() {
   const envSummary = {
+    seoulOpenApiKey: Boolean(serverEnv.seoulOpenApiKey),
     seoulRestaurantApiKey: Boolean(serverEnv.seoulRestaurantApiKey),
     neisApiKey: Boolean(serverEnv.neisApiKey),
     lawApiKey: Boolean(serverEnv.lawApiKey),
@@ -62,6 +68,14 @@ export async function GET() {
   const landUseResult = await fetchLandUseByPnu({
     pnu: "1168010100100050000", // 강남구 역삼동 5번지 (있다고 가정)
     numOfRows: 5
+  });
+
+  // 6) 서울 상권분석 - 길단위 인구 (2024년 4분기) 일부 샘플
+  const tradeAreaResult = await fetchSeoulTradeArea({
+    service: SEOUL_TRADE_AREA_SERVICES.footTraffic,
+    yyqu: "20244",
+    maxPages: 1,
+    pageSize: 5
   });
 
   return NextResponse.json({
@@ -120,6 +134,18 @@ export async function GET() {
           districtName: r.useDistrictName1,
           jibun: r.jibun,
           dong: r.dongName
+        }))
+      },
+      seoul_trade_area: {
+        ok: tradeAreaResult.ok,
+        attempt: summarizeSeoulAttempt(tradeAreaResult.attempt),
+        total: tradeAreaResult.totalCount,
+        sample_count: tradeAreaResult.rows.length,
+        sample: tradeAreaResult.rows.slice(0, 3).map((r) => ({
+          yyqu: r.STDR_YYQU_CD,
+          areaType: r.TRDAR_SE_CD_NM,
+          areaName: r.TRDAR_CD_NM,
+          areaCode: r.TRDAR_CD
         }))
       }
     },

@@ -89,7 +89,9 @@ export async function callSeoulOpenApi<T = Record<string, unknown>>(
   args: SeoulOpenApiCallArgs
 ): Promise<SeoulOpenApiResult<T>> {
   const started = Date.now();
-  const apiKey = args.apiKey ?? serverEnv.seoulRestaurantApiKey;
+  // 범용 SEOUL_API_KEY 우선, 없으면 일반음식점 전용 키, 그래도 없으면 빈 값(에러 처리)
+  const apiKey =
+    args.apiKey ?? serverEnv.seoulOpenApiKey ?? serverEnv.seoulRestaurantApiKey;
   const startIndex = args.startIndex ?? 1;
   const endIndex = args.endIndex ?? Math.min(startIndex + 999, startIndex + 999);
 
@@ -295,5 +297,76 @@ export async function fetchSeoulRestaurants(args: {
     filters: args.district ? { CGG_CODE_NM: args.district } : undefined,
     maxPages: args.maxPages,
     pageSize: args.pageSize
+  });
+}
+
+// ============================================================================
+// 서울 상권분석 서비스 — 길단위 인구·매출·점포·신규개업·폐업 시계열
+// ============================================================================
+
+/**
+ * 서울 상권분석 서비스의 service ID들.
+ * 일반적으로 분기별(YYYYQ Q=1~4) 시계열 데이터.
+ *
+ * 사용 예:
+ *   callSeoulOpenApi({
+ *     service: SEOUL_TRADE_AREA_SERVICES.footTraffic,
+ *     filters: { STDR_YYQU_CD: "20241", TRDAR_CD: "3210027" } // 2024년 1분기, 상권코드
+ *   })
+ */
+export const SEOUL_TRADE_AREA_SERVICES = {
+  /** 상권배후지 길단위 인구 (분기별) */
+  footTraffic: "VwsmTrdarFlpopQq",
+  /** 상권 추정매출 (분기별) */
+  sales: "VwsmTrdarSelngQq",
+  /** 상권 점포 수 (분기별) */
+  stores: "VwsmTrdarStorQq",
+  /** 상권 신규개업·폐업 (분기별) */
+  openClose: "VwsmTrdarOpbizQq",
+  /** 상권 종합지수 (분기별) */
+  index: "VwsmTrdarIxQq",
+  /** 상권배후지 거주인구 (분기별) */
+  residentialBackdrop: "VwsmTrdarAsdsQq",
+  /** 상권배후지 직장인구 (분기별) */
+  workerBackdrop: "VwsmTrdarRepopQq"
+} as const;
+
+/** 상권 시계열 row 공통 스키마 (각 service마다 컬럼은 추가 있음) */
+export type SeoulTradeAreaRow = {
+  STDR_YYQU_CD?: string;     // 기준년분기코드 (예: "20241" = 2024년 1분기)
+  TRDAR_SE_CD?: string;       // 상권 구분 코드
+  TRDAR_SE_CD_NM?: string;    // 상권 구분명 (예: "발달상권", "전통시장", "골목상권")
+  TRDAR_CD?: string;          // 상권 코드
+  TRDAR_CD_NM?: string;       // 상권명
+  [key: string]: string | undefined;
+};
+
+/**
+ * 상권 시계열 데이터 조회.
+ * 가장 큰 사용 사례:
+ * - 좌표 입력 → 인근 상권 코드 추출 → 해당 상권의 매출·인구·점포수 추이 조회
+ * - 상권배후지 분석: "이 상가의 손님은 어느 동에서 오는가"
+ */
+export async function fetchSeoulTradeArea(args: {
+  /** SEOUL_TRADE_AREA_SERVICES에서 선택 */
+  service: (typeof SEOUL_TRADE_AREA_SERVICES)[keyof typeof SEOUL_TRADE_AREA_SERVICES] | string;
+  /** 기준년분기 (예: "20241") — 미지정 시 최신 4개 분기 전체 */
+  yyqu?: string;
+  /** 상권 코드 (TRDAR_CD) — 알면 좁혀서 조회 */
+  trdarCode?: string;
+  /** 자치구명 (TRDAR_SE_CD_NM 등으로 필터 가능한 경우) */
+  district?: string;
+  maxPages?: number;
+  pageSize?: number;
+}): Promise<SeoulOpenApiResult<SeoulTradeAreaRow>> {
+  const filters: Record<string, string | undefined> = {};
+  if (args.yyqu) filters.STDR_YYQU_CD = args.yyqu;
+  if (args.trdarCode) filters.TRDAR_CD = args.trdarCode;
+
+  return fetchAllSeoulPages<SeoulTradeAreaRow>({
+    service: args.service,
+    filters,
+    maxPages: args.maxPages ?? 3,
+    pageSize: args.pageSize ?? 1000
   });
 }

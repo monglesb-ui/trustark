@@ -56,8 +56,16 @@ export const serverEnv = {
 
   realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY,
 
-  // 서울 열린데이터 (data.seoul.go.kr) — 일반음식점 인허가 등
-  seoulRestaurantApiKey: process.env.SEOUL_RESTAURANT_API_KEY,
+  // 서울 열린데이터광장 (data.seoul.go.kr) 범용 키
+  // 같은 키 하나로 모든 서울 OpenAPI 서비스 호출 가능. 일반음식점·상권분석·인구통계 등 공통.
+  seoulOpenApiKey:
+    process.env.SEOUL_API_KEY ??
+    process.env.SEOUL_RESTAURANT_API_KEY ??
+    process.env.SEOUL_COMMERCE_API_KEY,
+
+  // (legacy alias) 일반음식점 전용 키 — 별도 발급한 경우 보존
+  seoulRestaurantApiKey:
+    process.env.SEOUL_RESTAURANT_API_KEY ?? process.env.SEOUL_API_KEY,
 
   // 학교알리미 / NEIS (open.neis.go.kr) — 학교 좌표·정화구역 검증
   neisApiKey: process.env.NEIS_API_KEY,
