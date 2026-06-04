@@ -12,8 +12,26 @@ import {
 } from "@/lib/server/commercial-area-api";
 import { searchNaverLocal, type NaverLocalItem } from "@/lib/server/naver-search";
 import { extractSeoulSigungu } from "@/lib/server/seoul-districts";
-import type { GeocodeResult } from "@/lib/server/vworld";
+import { geocodeAddress, type GeocodeResult } from "@/lib/server/vworld";
 import type { TraceRecorder } from "../trace";
+
+/** Haversine 거리 (미터) */
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/** 입력 주소에서 도로명 추출 (가지번호 제외, "목동로 25길 7" → "목동로 25길") */
+function extractRoad(address: string): string | null {
+  const m = address.match(/([가-힣A-Za-z0-9]+로(?:\s*\d+길)?)\s*\d+/);
+  return m?.[1]?.trim() ?? null;
+}
 
 const AGENT = "Search Context Agent" as const; // 기존 trace union 재사용 — 추후 별도 agent명 추가 가능
 const TOOL = "fetchStoresInRadius" as const;
@@ -180,32 +198,81 @@ export async function runCompetitionDensityAgent({
           throw new Error(summarizeCommercialAttempt(result.attempt));
         }
 
-        // 5차 fallback: 소상공인 API 모두 0건이면 Naver Local 검색 사용
-        // (실시간으로 인근 매장 직접 검색. 신정동·목동 등 외곽 데이터 한계 우회)
+        // 5차 fallback: 소상공인 API 모두 0건이면 Naver Local 검색 + 거리 필터
+        // - 쿼리: 도로명 우선 → 동 → 자치구 단계적 정밀도
+        // - 결과 5건을 각각 vworld geocode로 좌표 변환 → 사용자 좌표 기준 거리 계산
+        // - 입력 radius(200m) 이내만 카운트, 결과는 가까운 순 정렬
         let usedNaverFallback = false;
+        let naverDiagnostic = "";
         if (result.items.length === 0) {
+          const road = extractRoad(payload.address ?? "");
           const dong = extractDong(payload.address ?? "");
-          const locationKw = dong || sigungu || payload.address?.slice(0, 20) || "서울";
-          const naverQuery = `${locationKw} ${businessLabel}`;
-          const naverResult = await searchNaverLocal(naverQuery, 5);
-          if (naverResult.items.length > 0) {
-            result = {
-              ok: true,
-              items: naverResult.items.map(naverLocalToRow),
-              totalCount: naverResult.total,
-              rawText: undefined,
-              attempt: {
-                endpoint: "naver-local",
-                urlRedacted: `query=${naverQuery}`,
-                httpStatus: naverResult.diagnostics.httpStatus,
-                totalCount: naverResult.total,
-                rowCount: naverResult.items.length,
-                durationMs: 0
-              }
-            };
-            effectiveRadius = 0;
-            fallbackNote = `(반경 검색 모두 0건 → Naver 지역 검색 "${naverQuery}"으로 fallback · 정확한 반경 거리는 추후 보강)`;
-            usedNaverFallback = true;
+          const queries = [
+            road ? `${road} ${businessLabel}` : null,
+            dong ? `${dong} ${businessLabel}` : null,
+            sigungu ? `${sigungu} ${businessLabel}` : null
+          ].filter((q): q is string => Boolean(q));
+
+          let combinedItems: NaverLocalItem[] = [];
+          let usedQueries: string[] = [];
+          for (const q of queries) {
+            const r = await searchNaverLocal(q, 5);
+            if (r.items.length > 0) {
+              combinedItems = combinedItems.concat(r.items);
+              usedQueries.push(q);
+              if (combinedItems.length >= 10) break;
+            }
+          }
+          // 중복 제거 (같은 도로명 주소 기준)
+          const dedup = Array.from(
+            new Map(combinedItems.map((i) => [i.roadAddress || i.address || i.title, i])).values()
+          );
+
+          if (dedup.length > 0) {
+            // 각 매장 주소를 다시 geocode (WGS84) — 사용자 좌표와 거리 계산용
+            const enriched = await Promise.all(
+              dedup.slice(0, 10).map(async (item) => {
+                try {
+                  const g = await geocodeAddress(item.roadAddress || item.address);
+                  if (g.result) {
+                    const distance = haversine(lat, lng, g.result.lat, g.result.lng);
+                    return { item, distance };
+                  }
+                } catch {}
+                return { item, distance: Number.POSITIVE_INFINITY };
+              })
+            );
+
+            // 입력 radius(200m) 이내 매장 우선, 그 외는 보조 (1km 이내)
+            const withinRadius = enriched.filter((e) => e.distance <= radiusMeters);
+            const within1km = enriched.filter(
+              (e) => e.distance > radiusMeters && e.distance <= 1000
+            );
+            const sorted = [...withinRadius, ...within1km].sort((a, b) => a.distance - b.distance);
+
+            if (sorted.length > 0) {
+              result = {
+                ok: true,
+                items: sorted.map((s) => naverLocalToRow(s.item)),
+                totalCount: sorted.length,
+                rawText: undefined,
+                attempt: {
+                  endpoint: "naver-local+geocode",
+                  urlRedacted: `queries=[${usedQueries.join(", ")}]`,
+                  httpStatus: 200,
+                  totalCount: sorted.length,
+                  rowCount: sorted.length,
+                  durationMs: 0
+                }
+              };
+              effectiveRadius = withinRadius.length > 0 ? radiusMeters : 1000;
+              fallbackNote = `(Naver Local "${usedQueries[0] ?? ""}" + 좌표 거리 필터 · ${withinRadius.length}건은 ${radiusMeters}m 이내, ${within1km.length}건은 1km 이내)`;
+              naverDiagnostic = sorted
+                .slice(0, 5)
+                .map((s) => `${s.item.title.slice(0, 12)}:${Math.round(s.distance)}m`)
+                .join(", ");
+              usedNaverFallback = true;
+            }
           }
         }
 
@@ -227,9 +294,11 @@ export async function runCompetitionDensityAgent({
           density_score: density.score,
           sample_stores: sampleStores,
           source: usedNaverFallback
-            ? "Naver 지역 검색 (소상공인 API 데이터 부족 시 fallback)"
+            ? "Naver Local + vworld geocode (사용자 좌표 기준 Haversine 거리)"
             : "소상공인진흥공단 상권정보 API",
-          diagnostic: summarizeCommercialAttempt(result.attempt),
+          diagnostic: usedNaverFallback
+            ? `${summarizeCommercialAttempt(result.attempt)} · 거리: ${naverDiagnostic}`
+            : summarizeCommercialAttempt(result.attempt),
           note:
             filtered.length === 0
               ? `이 ${effectiveRadius === 0 ? "자치구" : `반경 ${effectiveRadius}m`}에서 ${businessLabel} 매장이 검색되지 않았습니다. ${fallbackNote}`
