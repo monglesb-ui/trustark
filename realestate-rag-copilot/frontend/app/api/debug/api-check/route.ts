@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { fetchSeoulRestaurants, summarizeSeoulAttempt } from "@/lib/server/seoul-open-api";
 import { fetchSchools, summarizeNeisAttempt } from "@/lib/server/neis-api";
 import { searchOrdinances, summarizeLawAttempt } from "@/lib/server/law-api";
+import {
+  fetchStoresInRadius,
+  summarizeCommercialAttempt
+} from "@/lib/server/commercial-area-api";
 import { serverEnv } from "@/lib/server/env";
 
 /**
@@ -18,7 +22,8 @@ export async function GET() {
   const envSummary = {
     seoulRestaurantApiKey: Boolean(serverEnv.seoulRestaurantApiKey),
     neisApiKey: Boolean(serverEnv.neisApiKey),
-    lawApiKey: Boolean(serverEnv.lawApiKey)
+    lawApiKey: Boolean(serverEnv.lawApiKey),
+    commercialApiKey: Boolean(serverEnv.commercialApiKey)
   };
 
   // 1) 서울 일반음식점 - 강남구 1페이지 (1~10건)
@@ -40,6 +45,14 @@ export async function GET() {
     organization: "서울특별시 강남구",
     display: 5,
     page: 1
+  });
+
+  // 4) 소상공인 상권정보 - 강남역 좌표 반경 500m 상가업소 5건
+  const commercialResult = await fetchStoresInRadius({
+    cx: 127.0276, // 강남역 경도
+    cy: 37.4979, // 강남역 위도
+    radius: 500,
+    numOfRows: 5
   });
 
   return NextResponse.json({
@@ -75,6 +88,18 @@ export async function GET() {
           ? Object.keys(lawResult.data as Record<string, unknown>).slice(0, 10)
           : null,
         sample: lawResult.rawText ? lawResult.rawText.slice(0, 400) : null
+      },
+      commercial_stores: {
+        ok: commercialResult.ok,
+        attempt: summarizeCommercialAttempt(commercialResult.attempt),
+        total: commercialResult.totalCount,
+        sample_count: commercialResult.items.length,
+        sample: commercialResult.items.slice(0, 3).map((r) => ({
+          name: r.bizesNm,
+          category: r.indsSclsNm ?? r.indsMclsNm ?? r.indsLclsNm,
+          address: r.rdnmAdr ?? r.lnoAdr,
+          coords: r.lat && r.lon ? `${r.lat}, ${r.lon}` : null
+        }))
       }
     },
     note: "이 endpoint는 검증용 임시 라우트. 검증 완료 후 삭제 권장."
