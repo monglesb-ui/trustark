@@ -24,6 +24,29 @@ export type NaverSearchResult = {
   };
 };
 
+export type NaverLocalItem = {
+  title: string;
+  category: string;
+  address: string;
+  roadAddress: string;
+  telephone?: string;
+  // KATEC 좌표 (TM 중부원점). 1,000,000 × WGS84 근사가 아님 — 직접 좌표 거리 계산은 별도 변환 필요.
+  mapx?: number;
+  mapy?: number;
+};
+
+export type NaverLocalResult = {
+  query: string;
+  total: number;
+  items: NaverLocalItem[];
+  diagnostics: {
+    hasClientId: boolean;
+    hasClientSecret: boolean;
+    httpStatus?: number;
+    error?: string;
+  };
+};
+
 type RawSearchItem = {
   title?: string;
   link?: string;
@@ -143,4 +166,92 @@ export function searchNaverWeb(query: string, display = 5) {
 
 export function searchNaverNews(query: string, display = 3) {
   return requestNaverSearch("naver-search:news", "news", query, display);
+}
+
+/**
+ * Naver 지역(local) 검색. 가게 이름/카테고리/주소/좌표(KATEC) 반환.
+ * display는 1~5 (지역 검색은 5건 limit).
+ */
+export async function searchNaverLocal(query: string, display = 5): Promise<NaverLocalResult> {
+  const clientId = serverEnv.naverSearchClientId;
+  const clientSecret = serverEnv.naverSearchClientSecret;
+
+  const baseDiagnostics = {
+    hasClientId: Boolean(clientId),
+    hasClientSecret: Boolean(clientSecret)
+  };
+
+  if (!clientId || !clientSecret) {
+    return {
+      query,
+      total: 0,
+      items: [],
+      diagnostics: { ...baseDiagnostics, error: "missing NAVER_SEARCH_CLIENT_ID/SECRET" }
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
+  const url = new URL(`${NAVER_SEARCH_BASE_URL}/local.json`);
+  url.searchParams.set("query", query);
+  url.searchParams.set("display", String(Math.min(Math.max(display, 1), 5)));
+  url.searchParams.set("start", "1");
+  url.searchParams.set("sort", "random");
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "X-Naver-Client-Id": clientId,
+        "X-Naver-Client-Secret": clientSecret
+      },
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      return {
+        query,
+        total: 0,
+        items: [],
+        diagnostics: { ...baseDiagnostics, httpStatus: response.status, error: `HTTP ${response.status}` }
+      };
+    }
+    const payload = (await response.json()) as {
+      total?: number;
+      items?: Array<{
+        title?: string;
+        category?: string;
+        address?: string;
+        roadAddress?: string;
+        telephone?: string;
+        mapx?: string;
+        mapy?: string;
+      }>;
+    };
+    return {
+      query,
+      total: payload.total ?? 0,
+      items: (payload.items ?? []).map((it) => ({
+        title: decodeHtml(it.title ?? ""),
+        category: it.category ?? "",
+        address: it.address ?? "",
+        roadAddress: it.roadAddress ?? "",
+        telephone: it.telephone,
+        mapx: it.mapx ? Number(it.mapx) : undefined,
+        mapy: it.mapy ? Number(it.mapy) : undefined
+      })),
+      diagnostics: { ...baseDiagnostics, httpStatus: response.status }
+    };
+  } catch (error) {
+    return {
+      query,
+      total: 0,
+      items: [],
+      diagnostics: {
+        ...baseDiagnostics,
+        error: error instanceof Error ? error.message : "naver local search failed"
+      }
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }

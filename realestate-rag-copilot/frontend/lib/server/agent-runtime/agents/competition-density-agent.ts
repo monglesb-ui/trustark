@@ -10,6 +10,7 @@ import {
   summarizeCommercialAttempt,
   type CommercialStoreRow
 } from "@/lib/server/commercial-area-api";
+import { searchNaverLocal, type NaverLocalItem } from "@/lib/server/naver-search";
 import { extractSeoulSigungu } from "@/lib/server/seoul-districts";
 import type { GeocodeResult } from "@/lib/server/vworld";
 import type { TraceRecorder } from "../trace";
@@ -63,11 +64,28 @@ function filterByBusinessType(rows: CommercialStoreRow[], type: BusinessType): C
   });
 }
 
+/** Naver Local item → CommercialStoreRow 형태로 변환 (filterByBusinessType 호환) */
+function naverLocalToRow(item: NaverLocalItem): CommercialStoreRow {
+  return {
+    bizesNm: item.title,
+    indsSclsNm: item.category,
+    indsMclsNm: item.category,
+    rdnmAdr: item.roadAddress,
+    lnoAdr: item.address
+  };
+}
+
+/** 입력 주소에서 동(법정동/행정동) 추출 */
+function extractDong(address: string): string | null {
+  const m = address.match(/([가-힣]+동)(?:\s|\d|$)/);
+  return m?.[1] ?? null;
+}
+
 export async function runCompetitionDensityAgent({
   payload,
   geocode,
   trace,
-  radiusMeters = 500
+  radiusMeters = 200
 }: {
   payload: AnalyzeRequest;
   geocode: GeocodeResult | null;
@@ -162,7 +180,37 @@ export async function runCompetitionDensityAgent({
           throw new Error(summarizeCommercialAttempt(result.attempt));
         }
 
+        // 5차 fallback: 소상공인 API 모두 0건이면 Naver Local 검색 사용
+        // (실시간으로 인근 매장 직접 검색. 신정동·목동 등 외곽 데이터 한계 우회)
+        let usedNaverFallback = false;
+        if (result.items.length === 0) {
+          const dong = extractDong(payload.address ?? "");
+          const locationKw = dong || sigungu || payload.address?.slice(0, 20) || "서울";
+          const naverQuery = `${locationKw} ${businessLabel}`;
+          const naverResult = await searchNaverLocal(naverQuery, 5);
+          if (naverResult.items.length > 0) {
+            result = {
+              ok: true,
+              items: naverResult.items.map(naverLocalToRow),
+              totalCount: naverResult.total,
+              rawText: undefined,
+              attempt: {
+                endpoint: "naver-local",
+                urlRedacted: `query=${naverQuery}`,
+                httpStatus: naverResult.diagnostics.httpStatus,
+                totalCount: naverResult.total,
+                rowCount: naverResult.items.length,
+                durationMs: 0
+              }
+            };
+            effectiveRadius = 0;
+            fallbackNote = `(반경 검색 모두 0건 → Naver 지역 검색 "${naverQuery}"으로 fallback · 정확한 반경 거리는 추후 보강)`;
+            usedNaverFallback = true;
+          }
+        }
+
         const filtered = filterByBusinessType(result.items, businessType);
+        // Naver fallback의 경우 카테고리에 "카페" 포함 매장이 모두 매칭되니 그대로 filtered 사용
         const density = labelDensity(filtered.length);
         const sampleStores = filtered.slice(0, 5).map((s) => ({
           name: s.bizesNm ?? "(이름 없음)",
@@ -178,7 +226,9 @@ export async function runCompetitionDensityAgent({
           density_label: density.label,
           density_score: density.score,
           sample_stores: sampleStores,
-          source: "소상공인진흥공단 상권정보 API",
+          source: usedNaverFallback
+            ? "Naver 지역 검색 (소상공인 API 데이터 부족 시 fallback)"
+            : "소상공인진흥공단 상권정보 API",
           diagnostic: summarizeCommercialAttempt(result.attempt),
           note:
             filtered.length === 0
