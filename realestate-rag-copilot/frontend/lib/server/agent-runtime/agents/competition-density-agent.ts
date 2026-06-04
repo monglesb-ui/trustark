@@ -207,20 +207,24 @@ export async function runCompetitionDensityAgent({
         if (result.items.length === 0) {
           const road = extractRoad(payload.address ?? "");
           const dong = extractDong(payload.address ?? "");
-          const queries = [
-            road ? `${road} ${businessLabel}` : null,
-            dong ? `${dong} ${businessLabel}` : null,
-            sigungu ? `${sigungu} ${businessLabel}` : null
-          ].filter((q): q is string => Boolean(q));
+          // Naver Local 5건/쿼리 한도를 우회하기 위해 다양한 키워드 조합 (cafe 동의어 활용)
+          const cafeSynonyms = businessType === "cafe" ? ["카페", "커피", "디저트", "베이커리"] : [businessLabel];
+          const queries: string[] = [];
+          for (const kw of cafeSynonyms) {
+            if (road) queries.push(`${road} ${kw}`);
+          }
+          if (dong) queries.push(`${dong} ${businessLabel}`);
+          if (sigungu) queries.push(`${sigungu} ${businessLabel}`);
 
           let combinedItems: NaverLocalItem[] = [];
           let usedQueries: string[] = [];
+          // 모든 쿼리를 시도해 결과 누적 (최대 30건)
           for (const q of queries) {
             const r = await searchNaverLocal(q, 5);
             if (r.items.length > 0) {
               combinedItems = combinedItems.concat(r.items);
               usedQueries.push(q);
-              if (combinedItems.length >= 10) break;
+              if (combinedItems.length >= 30) break;
             }
           }
           // 중복 제거 (같은 도로명 주소 기준)
@@ -230,8 +234,9 @@ export async function runCompetitionDensityAgent({
 
           if (dedup.length > 0) {
             // 각 매장 주소를 다시 geocode (WGS84) — 사용자 좌표와 거리 계산용
+            // 최대 25건까지 처리 (성능 고려)
             const enriched = await Promise.all(
-              dedup.slice(0, 10).map(async (item) => {
+              dedup.slice(0, 25).map(async (item) => {
                 try {
                   const g = await geocodeAddress(item.roadAddress || item.address);
                   if (g.result) {
