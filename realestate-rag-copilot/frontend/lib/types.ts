@@ -145,10 +145,25 @@ export type ScoreBreakdown = {
   final_score: number;
 };
 
+export type PlannableAgent =
+  | "market_data"
+  | "building_register"
+  | "registry"
+  | "search_context";
+
+export type PlanPriority = "critical" | "normal" | "optional";
+
+export type ExecutionPlanEntry = {
+  agent: PlannableAgent;
+  priority: PlanPriority;
+  notes: string;
+};
+
 export type PlannerOutput = {
   intent_tags: string[];
   emphasis: string[];
   user_question_summary: string;
+  execution_plan: ExecutionPlanEntry[];
 };
 
 export type AnalyzeResponse = {

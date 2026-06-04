@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { buildAnalysisSkeleton } from "@/lib/analysis-skeleton";
 import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types";
-import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus, MapMarker } from "@/lib/types";
+import type {
+  AnalyzeRequest,
+  AnalyzeResponse,
+  DataSourceStatus,
+  ExecutionPlanEntry,
+  MapMarker,
+  PlannableAgent,
+  PlanPriority,
+  PlannerOutput
+} from "@/lib/types";
 import { createTraceRecorder, withTraces } from "@/lib/server/agent-runtime/trace";
 import { runMarketDataAgent } from "@/lib/server/agent-runtime/agents/market-data-agent";
 import { runRagEvidenceAgent } from "@/lib/server/agent-runtime/agents/rag-evidence-agent";
@@ -272,6 +281,62 @@ function unique(items: string[]) {
   return [...new Set(items)];
 }
 
+const PLAN_AGENT_LABEL: Record<PlannableAgent, string> = {
+  market_data: "실거래가",
+  building_register: "건축물대장",
+  registry: "등기부등본",
+  search_context: "외부 검색 맥락"
+};
+
+const PLAN_AGENT_TO_STATUS_ID: Record<PlannableAgent, string[]> = {
+  market_data: ["rent-market", "sale-market"],
+  building_register: ["building-register"],
+  registry: ["registry"],
+  search_context: ["search-context"]
+};
+
+function priorityFor(plan: ExecutionPlanEntry[] | undefined, agent: PlannableAgent): PlanPriority {
+  if (!plan) return "normal";
+  return plan.find((e) => e.agent === agent)?.priority ?? "normal";
+}
+
+function noteFor(plan: ExecutionPlanEntry[] | undefined, agent: PlannableAgent): string {
+  if (!plan) return "";
+  return plan.find((e) => e.agent === agent)?.notes ?? "";
+}
+
+function markSkipped(report: AnalyzeResponse, statusId: string, label: string, note: string) {
+  return withStatus(report, {
+    id: statusId,
+    label,
+    status: "missing",
+    detail: `Planner: optional 우선순위 - 실행 생략 · ${note || "사용자 의도와 직접 관련 없음"}`
+  });
+}
+
+function appendCriticalWarnings(report: AnalyzeResponse, plan: ExecutionPlanEntry[] | undefined): AnalyzeResponse {
+  if (!plan) return report;
+  const issues: string[] = [];
+  for (const entry of plan) {
+    if (entry.priority !== "critical") continue;
+    const statusIds = PLAN_AGENT_TO_STATUS_ID[entry.agent];
+    const failedOrMissing = statusIds.some((id) => {
+      const ds = report.data_statuses?.find((s) => s.id === id);
+      return !ds || ds.status === "failed" || ds.status === "missing";
+    });
+    if (failedOrMissing) {
+      issues.push(
+        `⚠ 사용자 의도상 critical 데이터 미확보 — ${PLAN_AGENT_LABEL[entry.agent]}: ${entry.notes || "Planner가 우선 확인 항목으로 지정했으나 현재 자동 분석에서 확보되지 않았습니다."}`
+      );
+    }
+  }
+  if (issues.length === 0) return report;
+  return {
+    ...report,
+    warnings: [...issues, ...report.warnings]
+  } satisfies AnalyzeResponse;
+}
+
 export async function POST(request: Request) {
   let payload: AnalyzeRequest;
 
@@ -285,7 +350,8 @@ export async function POST(request: Request) {
 
   try {
     const skeletonReport = applyPropertyTypeContext(buildAnalysisSkeleton(payload), payload);
-    const planner = await runPlannerAgent({ payload, trace });
+    const planner: PlannerOutput | null = await runPlannerAgent({ payload, trace });
+    const executionPlan = planner?.execution_plan;
     const ragResult = runRagEvidenceAgent({ report: skeletonReport, payload, trace });
     const geocode = await runLocationContextAgent({ payload, trace });
     const geocodedReport = applyGeocoding(ragResult.report, geocode, payload);
@@ -334,13 +400,16 @@ export async function POST(request: Request) {
           detail: legalDong ? marketFailureDetail(saleLookup?.diagnostics) : "법정동코드 없음 · 전세가율 미확정"
         });
 
-    const buildingRegisterReport = await runBuildingRegisterAgent({
-      report: marketReport,
-      payload,
-      legalDong,
-      geocode,
-      trace
-    });
+    const buildingRegisterReport =
+      priorityFor(executionPlan, "building_register") === "optional"
+        ? markSkipped(marketReport, "building-register", "건축물대장", noteFor(executionPlan, "building_register"))
+        : await runBuildingRegisterAgent({
+            report: marketReport,
+            payload,
+            legalDong,
+            geocode,
+            trace
+          });
     const registryReport = await runRegistryAgent({
       report: buildingRegisterReport,
       payload,
@@ -348,10 +417,19 @@ export async function POST(request: Request) {
       trace,
       allowPaidLookup: false
     });
-    const searchContextReport = await runSearchContextAgent({ report: registryReport, payload, trace });
+    const searchContextReport =
+      priorityFor(executionPlan, "search_context") === "optional"
+        ? markSkipped(registryReport, "search-context", "외부 검색 맥락", noteFor(executionPlan, "search_context"))
+        : await runSearchContextAgent({ report: registryReport, payload, trace });
     const scoredReport = runRiskScoringAgent({ report: searchContextReport, payload, trace });
-    const scoredWithPlanner: AnalyzeResponse = planner ? { ...scoredReport, planner } : scoredReport;
-    const summarizedReport = await runSummarizerAgent({ payload, report: scoredWithPlanner, planner, trace });
+    const reportWithPlanner: AnalyzeResponse = planner ? { ...scoredReport, planner } : scoredReport;
+    const reportWithWarnings = appendCriticalWarnings(reportWithPlanner, executionPlan);
+    const summarizedReport = await runSummarizerAgent({
+      payload,
+      report: reportWithWarnings,
+      planner,
+      trace
+    });
     const composedReport = runReportAgent({ report: summarizedReport, trace });
     const finalReport = runValidationAgent({ report: composedReport, trace });
 

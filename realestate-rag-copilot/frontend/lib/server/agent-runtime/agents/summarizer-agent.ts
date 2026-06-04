@@ -7,13 +7,13 @@ const SUMMARIZER_TOOL = "writeReportSummary" as const;
 const SUMMARIZER_MODEL = "gpt-4o";
 
 const SYSTEM_PROMPT = `당신은 한국 부동산 계약 위험 분석 코파일럿의 Summarizer 에이전트입니다.
-입력으로 구조화된 분석 결과(시세, 등기, 건축물대장, 위험 점수, 미확인 항목 등)와 Planner가 추정한 사용자 의도를 받습니다.
+입력으로 구조화된 분석 결과(시세, 등기, 건축물대장, 위험 점수, 미확인 항목, Planner가 산출한 execution_plan)를 받습니다.
 
 다음을 산출하세요:
-- summary: 사용자에게 보여줄 2~3문장의 요약. 단정 표현은 피하고, "현재 데이터 기준", "추가 확인 필요" 같은 안전 표현을 유지. Planner의 의도를 반영해 가장 우려되는 항목을 먼저 언급.
-- ranked_next_actions: 사용자가 가장 먼저 해야 할 후속 행동을 우선순위 순으로 3~6개. 각 항목은 구체적(예: "등기부등본을 발급해 근저당권·압류·가압류 여부 확인")이고 한 줄.
+- summary: 사용자에게 보여줄 2~3문장의 요약. 단정 표현은 피하고, "현재 데이터 기준", "추가 확인 필요" 같은 안전 표현을 유지. Planner의 의도(execution_plan에서 priority=critical인 항목)를 반영해 가장 우려되는 항목을 먼저 언급. critical인데 데이터 미확보면 그 사실을 명시적으로 언급.
+- ranked_next_actions: 사용자가 가장 먼저 해야 할 후속 행동을 우선순위 순으로 3~6개. 각 항목은 구체적이고 한 줄. execution_plan에서 critical priority인 항목과 관련된 액션을 최상위에 배치.
 
-원본 next_actions를 참고하되 우선순위와 표현을 다듬어 새로 구성해도 좋습니다. 단정·법적 판단은 금지.`;
+원본 next_actions를 참고하되 우선순위와 표현을 다듬어 새로 구성하세요. 단정·법적 판단은 금지.`;
 
 type SummarizerOutput = {
   summary: string;
@@ -86,8 +86,13 @@ export async function runSummarizerAgent({
   }
 
   const snapshot = buildReportSnapshot(report);
+  const planLines = planner?.execution_plan?.length
+    ? `Planner execution_plan:\n${planner.execution_plan
+        .map((e) => `  - ${e.agent}: ${e.priority} · ${e.notes}`)
+        .join("\n")}`
+    : "Planner execution_plan: (없음)";
   const plannerLines = planner
-    ? `Planner intent_tags: ${planner.intent_tags.join(", ") || "(none)"}\nPlanner emphasis: ${planner.emphasis.join(" | ") || "(none)"}\nPlanner question_summary: ${planner.user_question_summary}`
+    ? `Planner intent_tags: ${planner.intent_tags.join(", ") || "(none)"}\nPlanner emphasis: ${planner.emphasis.join(" | ") || "(none)"}\nPlanner question_summary: ${planner.user_question_summary}\n${planLines}`
     : "Planner: (출력 없음)";
   const userPayload = `사용자 질문: ${payload.user_question?.trim() || "(질문 없음)"}\n\n${plannerLines}\n\n=== 분석 결과 스냅샷 ===\n${snapshot}`;
 

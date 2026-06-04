@@ -96,6 +96,25 @@ function intentTagLabel(tag: string) {
   return INTENT_TAG_LABELS[tag] ?? tag;
 }
 
+const PLAN_AGENT_LABEL: Record<string, string> = {
+  market_data: "실거래가",
+  building_register: "건축물대장",
+  registry: "등기부등본",
+  search_context: "외부 검색 맥락"
+};
+
+const PLAN_PRIORITY_LABEL: Record<string, string> = {
+  critical: "최우선",
+  normal: "기본",
+  optional: "건너뜀"
+};
+
+const PLAN_PRIORITY_CLASS: Record<string, string> = {
+  critical: "bg-clay/15 text-clay border border-clay/30",
+  normal: "bg-ink/10 text-ink/70 border border-ink/15",
+  optional: "bg-stone-200 text-stone-600 border border-stone-300"
+};
+
 function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] }) {
   if (!planner) return null;
   const hasTags = planner.intent_tags.length > 0;
@@ -136,6 +155,31 @@ function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] 
             </li>
           ))}
         </ul>
+      ) : null}
+      {planner.execution_plan?.length ? (
+        <div className="mt-4 rounded-md border border-white/70 bg-white/80 p-3">
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+            AI가 결정한 실행 계획
+          </p>
+          <ul className="mt-2 space-y-1.5 text-xs text-ink/75">
+            {planner.execution_plan.map((entry) => (
+              <li key={entry.agent} className="flex items-start gap-2">
+                <span
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[0.65rem] font-black ${PLAN_PRIORITY_CLASS[entry.priority] ?? PLAN_PRIORITY_CLASS.normal}`}
+                >
+                  {PLAN_PRIORITY_LABEL[entry.priority] ?? entry.priority}
+                </span>
+                <span>
+                  <strong className="text-ink">{PLAN_AGENT_LABEL[entry.agent] ?? entry.agent}</strong>
+                  {entry.notes ? <span className="text-ink/60"> — {entry.notes}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[0.7rem] text-ink/55">
+            ※ AI가 사용자 의도에 맞춰 어떤 데이터 단계를 최우선으로 볼지·건너뛸지 결정한 결과입니다. &ldquo;건너뜀&rdquo;인 항목은 외부 API 호출을 생략해 시간·비용을 절약합니다.
+          </p>
+        </div>
       ) : null}
       <p className="mt-3 text-[0.7rem] text-ink/55">
         ※ 이 의도 분류는 AI가 사용자 질문과 입력값을 보고 추정한 것입니다. 후속 요약·액션 순서가 이 의도를 기준으로
@@ -494,6 +538,9 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
             report.planner!.emphasis.length > 0
               ? `강조 포인트: ${report.planner!.emphasis.join(" | ")}`
               : "강조 포인트 없음",
+            report.planner!.execution_plan?.length
+              ? `실행 계획: ${report.planner!.execution_plan.map((e) => `${PLAN_AGENT_LABEL[e.agent] ?? e.agent}=${PLAN_PRIORITY_LABEL[e.priority] ?? e.priority}`).join(" / ")}`
+              : "실행 계획: (없음)",
             "이 분류는 사용자 입력만 보고 추정한 결과로 단정이 아니며, 잘못 짚었다면 질문을 더 구체적으로 적어 재실행해야 합니다."
           ]
         : [
