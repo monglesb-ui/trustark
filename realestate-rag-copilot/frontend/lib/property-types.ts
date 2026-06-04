@@ -33,10 +33,12 @@ export const propertyTypeOptions: Array<{ value: PropertyType; label: string; gr
   { value: "other", label: "기타", group: "other" }
 ];
 
-export function getPropertyTypeLabel(value: string) {
+export function getPropertyTypeLabel(value: string | undefined | null) {
+  if (!value) return "기타";
   return propertyTypeOptions.find((option) => option.value === value)?.label ?? value;
 }
 
-export function getPropertyTypeGroup(value: string): PropertyTypeGroup {
+export function getPropertyTypeGroup(value: string | undefined | null): PropertyTypeGroup {
+  if (!value) return "other";
   return propertyTypeOptions.find((option) => option.value === value)?.group ?? "other";
 }

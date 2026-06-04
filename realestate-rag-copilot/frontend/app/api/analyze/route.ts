@@ -337,6 +337,45 @@ function appendCriticalWarnings(report: AnalyzeResponse, plan: ExecutionPlanEntr
   } satisfies AnalyzeResponse;
 }
 
+function buildModePlaceholder(payload: AnalyzeRequest): AnalyzeResponse {
+  const skeleton = buildAnalysisSkeleton(payload);
+  const modeLabel =
+    payload.mode === "business_permit"
+      ? "창업·영업 적합성"
+      : payload.mode === "commercial_use"
+        ? "상가 활용성"
+        : "터무니 검토";
+  const placeholderMessage = `[${modeLabel}] 모드는 곧 출시됩니다. 현재는 입력값을 받아 placeholder 결과만 보여드립니다. 발표 직전 LOCALDATA·LURIS·법령 RAG 연동으로 정식 활성화 예정.`;
+  const statuses: DataSourceStatus[] = [
+    { id: "mode-runtime", label: `${modeLabel} 검증`, status: "missing", detail: "정식 활성화 전 — placeholder" },
+    { id: "geocoding", label: "지도 지오코딩", status: "missing", detail: "정식 활성화 전 — placeholder" },
+    { id: "zoning", label: "용도지역", status: "missing", detail: "LURIS 연동 후 활성" },
+    { id: "school-zone", label: "정화구역", status: "missing", detail: "학교알리미 연동 후 활성" },
+    { id: "competition", label: "동종업종 밀집도", status: "missing", detail: "LOCALDATA 연동 후 활성" },
+    { id: "license-requirement", label: "인허가 절차", status: "missing", detail: "법령 RAG 연동 후 활성" }
+  ];
+  return {
+    ...skeleton,
+    risk_level: "준비 중 모드",
+    summary: placeholderMessage,
+    data_statuses: statuses,
+    evidence: [
+      ...skeleton.evidence,
+      {
+        title: `${modeLabel} 모드 안내`,
+        description:
+          "이 모드는 LOCALDATA(전국 인허가 사업장), LURIS(용도지역), 학교알리미, ELIS(자치구 조례) 등 무료 공공 API를 연동해 곧 활성화됩니다. 발표 시연에서는 부동산 임차·매수 모드를 사용해 주세요.",
+        source: "tumuni:mode_placeholder"
+      }
+    ],
+    next_actions: [
+      "지금은 부동산 임차·매수 모드를 사용해 주세요.",
+      "API 신청 완료 후 1차 활성화 예정 (LOCALDATA + LURIS).",
+      "디엘톤 발표 시연에서는 부동산 모드의 분석 흐름을 보여드립니다."
+    ]
+  } satisfies AnalyzeResponse;
+}
+
 export async function POST(request: Request) {
   let payload: AnalyzeRequest;
 
@@ -345,6 +384,33 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
+
+  // === Placeholder 모드: 부동산이 아닌 경우 (창업·상가) === //
+  if (payload.mode && payload.mode !== "real_estate") {
+    const trace = createTraceRecorder();
+    trace.record(
+      "Validation Agent",
+      "modePlaceholder",
+      `mode=${payload.mode} · address=${payload.address}`,
+      `${payload.mode} 모드는 placeholder 응답으로 처리`,
+      "missing"
+    );
+    return NextResponse.json(withTraces(buildModePlaceholder(payload), trace.traces));
+  }
+
+  // real_estate 모드의 optional 필드를 안전 기본값으로 normalize
+  // (form에서 "더 자세히"를 펼치지 않은 경우 deposit/monthly_rent 등이 비어있을 수 있음)
+  const normalized: AnalyzeRequest = {
+    ...payload,
+    mode: payload.mode ?? "real_estate",
+    contract_type: payload.contract_type ?? "jeonse",
+    property_type: payload.property_type ?? "other",
+    deposit: typeof payload.deposit === "number" ? payload.deposit : 0,
+    monthly_rent: typeof payload.monthly_rent === "number" ? payload.monthly_rent : 0,
+    sale_price: payload.sale_price ?? null,
+    user_question: payload.user_question ?? ""
+  };
+  payload = normalized;
 
   const trace = createTraceRecorder();
 

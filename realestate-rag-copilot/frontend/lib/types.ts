@@ -2,14 +2,46 @@ import type { PropertyType } from "./property-types";
 
 export type ContractType = "jeonse" | "monthly" | "sale";
 
+export type AnalysisMode = "real_estate" | "business_permit" | "commercial_use";
+
+export type BusinessType =
+  | "restaurant"
+  | "cafe"
+  | "beauty"
+  | "academy"
+  | "pc_room"
+  | "karaoke"
+  | "other";
+
+export type OperatingHours = "day" | "all_day" | "late_night";
+
+export type CommercialPurpose = "lease_out" | "buy_and_use" | "business_location";
+
 export type AnalyzeRequest = {
-  contract_type: ContractType;
+  /** 검토 모드 (선택, 미지정 시 real_estate로 처리) */
+  mode?: AnalysisMode;
+  /** 모든 모드에서 필수 */
   address: string;
-  deposit: number;
-  monthly_rent: number;
-  sale_price: number | null;
-  property_type: PropertyType;
-  user_question: string;
+
+  // === 부동산 임차·매수 모드 ===
+  contract_type?: ContractType;
+  property_type?: PropertyType;
+  deposit?: number;
+  monthly_rent?: number;
+  sale_price?: number | null;
+
+  // === 창업·영업 적합성 모드 ===
+  business_type?: BusinessType;
+  store_area_sqm?: number;
+  operating_hours?: OperatingHours;
+  has_license?: boolean;
+
+  // === 상가 활용성 모드 ===
+  commercial_purpose?: CommercialPurpose;
+  budget?: number;
+
+  // === 공통 (선택) ===
+  user_question?: string;
 };
 
 export type Location = {

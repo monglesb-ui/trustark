@@ -132,7 +132,7 @@ export function runRiskScoringAgent({
   trace.record(
     RISK_SCORING_AGENT,
     scoreTool,
-    `deposit=${payload.deposit.toLocaleString("ko-KR")} · property=${payload.property_type}`,
+    `deposit=${(payload.deposit ?? 0).toLocaleString("ko-KR")} · property=${payload.property_type ?? "other"}`,
     `risk=${report.risk_score} · level=${report.risk_level} · jeonseRatio=${report.market_comparison.jeonse_ratio ?? "n/a"}`
   );
 

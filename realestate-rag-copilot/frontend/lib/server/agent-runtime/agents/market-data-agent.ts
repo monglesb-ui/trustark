@@ -96,11 +96,13 @@ export async function runMarketDataAgent({
     };
   }
 
+  const propertyType = payload.property_type ?? "other";
+  const contractType = payload.contract_type ?? "jeonse";
   const rentLookup = await callMarketTool(
     trace,
     "lookupRentMarketSummary",
-    `LAWD_CD ${legalDong.lawdCode} · ${payload.property_type} · ${payload.contract_type}`,
-    () => lookupRentMarketSummary(legalDong.lawdCode, payload.property_type, payload.contract_type, payload.address),
+    `LAWD_CD ${legalDong.lawdCode} · ${propertyType} · ${contractType}`,
+    () => lookupRentMarketSummary(legalDong.lawdCode, propertyType, contractType, payload.address),
     (result) => ({
       status: result.summary ? "success" : "missing",
       outputSummary: result.summary
@@ -112,8 +114,8 @@ export async function runMarketDataAgent({
   const saleLookup = await callMarketTool(
     trace,
     "lookupSaleMarketSummary",
-    `LAWD_CD ${legalDong.lawdCode} · ${payload.property_type}`,
-    () => lookupSaleMarketSummary(legalDong.lawdCode, payload.property_type, payload.address),
+    `LAWD_CD ${legalDong.lawdCode} · ${propertyType}`,
+    () => lookupSaleMarketSummary(legalDong.lawdCode, propertyType, payload.address),
     (result) => ({
       status: result.summary ? "success" : "missing",
       outputSummary: result.summary
