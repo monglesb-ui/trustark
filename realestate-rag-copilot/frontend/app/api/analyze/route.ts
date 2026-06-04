@@ -28,6 +28,7 @@ import { runSchoolZoneAgent } from "@/lib/server/agent-runtime/agents/school-zon
 import { runPropertyValueAgent } from "@/lib/server/agent-runtime/agents/property-value-agent";
 import { runBuildingRegisterLightAgent } from "@/lib/server/agent-runtime/agents/building-register-light-agent";
 import { runLocalContextLightAgent } from "@/lib/server/agent-runtime/agents/local-context-light-agent";
+import { runLegalRagAgent } from "@/lib/server/agent-runtime/agents/legal-rag-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -426,6 +427,9 @@ export async function POST(request: Request) {
     // 7) Local Context — Naver 웹+뉴스 검색 (창업·상가 모두). 동네 분위기·이슈 보강
     const localContextFinding = await runLocalContextLightAgent({ payload, trace });
 
+    // 8) Legal RAG — Agentic RAG (도메인 라우팅 + LLM 쿼리 리라이팅 + top-k 임베딩 검색)
+    const legalRagFinding = await runLegalRagAgent({ payload, trace });
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -471,6 +475,7 @@ export async function POST(request: Request) {
         : undefined,
       building_register: buildingRegisterView ?? base.building_register,
       local_context: localContextFinding ?? undefined,
+      legal_rag: legalRagFinding ?? undefined,
       location: geocode.result
         ? {
             lat: geocode.result.lat,

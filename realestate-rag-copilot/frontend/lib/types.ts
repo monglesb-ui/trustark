@@ -282,11 +282,34 @@ export type NaverContextFinding = {
   note: string;
 };
 
+export type LegalRagDomain = "law" | "ordinance" | "case" | "contract";
+
+export type LegalRagHit = {
+  id: string;
+  domain: LegalRagDomain;
+  title: string;
+  section?: string;
+  text: string;
+  score: number;
+  source: string;
+};
+
+export type LegalRagFinding = {
+  query: string;
+  rewritten_query: string;
+  selected_domains: LegalRagDomain[];
+  hits: LegalRagHit[];
+  source: string;
+  note: string;
+  index_size?: number;
+};
+
 export type AnalyzeResponse = {
   requested_mode?: AnalysisMode;
   business_findings?: BusinessPermitFindings;
   commercial_findings?: CommercialUseFindings;
   local_context?: NaverContextFinding;
+  legal_rag?: LegalRagFinding;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

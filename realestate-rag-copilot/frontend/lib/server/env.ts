@@ -84,7 +84,11 @@ export const serverEnv = {
   landUseApiKey: process.env.LAND_USE_API_KEY,
 
   // X (구 Twitter) API v2 — Bearer Token (App-only auth). Recent search 등
-  xApiKey: process.env.X_API_KEY ?? process.env.TWITTER_BEARER_TOKEN
+  xApiKey:
+    process.env.BEARER_TOKEN ??
+    process.env.X_BEARER_TOKEN ??
+    process.env.X_API_KEY ??
+    process.env.TWITTER_BEARER_TOKEN
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {

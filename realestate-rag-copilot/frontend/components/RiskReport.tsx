@@ -190,6 +190,94 @@ function CompetitionDensityCard({
   );
 }
 
+function LegalRagCard({
+  finding
+}: {
+  finding: AnalyzeResponse["legal_rag"];
+}) {
+  if (!finding) return null;
+  const domainLabel: Record<string, string> = {
+    law: "법령",
+    ordinance: "자치법규",
+    case: "사례",
+    contract: "표준계약"
+  };
+  const domainTone: Record<string, string> = {
+    law: "border-clay/40 bg-clay/10 text-clay",
+    ordinance: "border-brass/40 bg-brass/10 text-brass",
+    case: "border-ink/40 bg-ink/10 text-ink",
+    contract: "border-moss/40 bg-moss/10 text-moss"
+  };
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성 · Agentic RAG
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">법령 · 조례 · 사례 RAG 근거</h3>
+        </div>
+        <span className="shrink-0 rounded-md border border-moss/45 bg-moss/10 px-3 py-1.5 text-sm font-black text-moss">
+          {finding.hits.length}건 top-k
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 text-xs">
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">초기 쿼리</p>
+          <p className="mt-1 text-ink/80">{finding.query}</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">LLM 리라이트 쿼리</p>
+          <p className="mt-1 text-ink/80">{finding.rewritten_query}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[0.65rem]">
+        <span className="font-black uppercase tracking-[0.08em] text-ink/45">도메인 라우팅:</span>
+        {finding.selected_domains.map((d) => (
+          <span
+            key={d}
+            className={`rounded-md border px-2 py-0.5 font-bold ${domainTone[d] ?? "border-ink/15 bg-ink/5 text-ink"}`}
+          >
+            {domainLabel[d] ?? d}
+          </span>
+        ))}
+      </div>
+
+      <ul className="mt-4 grid gap-2">
+        {finding.hits.map((hit) => (
+          <li key={hit.id} className="rounded-md border border-ink/10 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold text-ink">{hit.title}</p>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`shrink-0 rounded-md border px-2 py-0.5 text-[0.6rem] font-black uppercase ${
+                    domainTone[hit.domain] ?? "border-ink/15 bg-ink/5 text-ink"
+                  }`}
+                >
+                  {domainLabel[hit.domain] ?? hit.domain}
+                </span>
+                <span className="shrink-0 rounded-md border border-ink/10 bg-paper px-2 py-0.5 text-[0.6rem] font-bold text-ink/65 tabular-nums">
+                  {(hit.score * 100).toFixed(0)}점
+                </span>
+              </div>
+            </div>
+            <p className="mt-1.5 text-xs leading-5 text-ink/70 line-clamp-4 whitespace-pre-wrap">
+              {hit.text}
+            </p>
+            <p className="mt-1 text-[0.6rem] font-bold text-ink/40">{hit.source}</p>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ {finding.source}. {finding.note}
+      </p>
+    </section>
+  );
+}
+
 function LocalContextCard({
   finding
 }: {
@@ -1641,6 +1729,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.local_context ? (
         <LocalContextCard finding={report.local_context} />
+      ) : null}
+
+      {isPlaceholderMode && report.legal_rag ? (
+        <LegalRagCard finding={report.legal_rag} />
       ) : null}
 
       {!isPlaceholderMode ? (
