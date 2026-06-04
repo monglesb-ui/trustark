@@ -6,6 +6,7 @@ import {
   fetchStoresInRadius,
   summarizeCommercialAttempt
 } from "@/lib/server/commercial-area-api";
+import { fetchLandUseByPnu, summarizeLandUseAttempt } from "@/lib/server/land-use-api";
 import { serverEnv } from "@/lib/server/env";
 
 /**
@@ -23,7 +24,8 @@ export async function GET() {
     seoulRestaurantApiKey: Boolean(serverEnv.seoulRestaurantApiKey),
     neisApiKey: Boolean(serverEnv.neisApiKey),
     lawApiKey: Boolean(serverEnv.lawApiKey),
-    commercialApiKey: Boolean(serverEnv.commercialApiKey)
+    commercialApiKey: Boolean(serverEnv.commercialApiKey),
+    landUseApiKey: Boolean(serverEnv.landUseApiKey)
   };
 
   // 1) 서울 일반음식점 - 강남구 1페이지 (1~10건)
@@ -52,6 +54,13 @@ export async function GET() {
     cx: 127.0276, // 강남역 경도
     cy: 37.4979, // 강남역 위도
     radius: 500,
+    numOfRows: 5
+  });
+
+  // 5) 토지이용계획 LURIS - 샘플 PNU (강남구 역삼동 법정동코드 기반 임의 필지)
+  // PNU 19자리 = 법정동코드(10) + 대지구분(1) + 본번(4) + 부번(4)
+  const landUseResult = await fetchLandUseByPnu({
+    pnu: "1168010100100050000", // 강남구 역삼동 5번지 (있다고 가정)
     numOfRows: 5
   });
 
@@ -99,6 +108,18 @@ export async function GET() {
           category: r.indsSclsNm ?? r.indsMclsNm ?? r.indsLclsNm,
           address: r.rdnmAdr ?? r.lnoAdr,
           coords: r.lat && r.lon ? `${r.lat}, ${r.lon}` : null
+        }))
+      },
+      land_use_plan: {
+        ok: landUseResult.ok,
+        attempt: summarizeLandUseAttempt(landUseResult.attempt),
+        total: landUseResult.totalCount,
+        sample_count: landUseResult.items.length,
+        sample: landUseResult.items.slice(0, 3).map((r) => ({
+          pnu: r.pnu,
+          districtName: r.useDistrictName1,
+          jibun: r.jibun,
+          dong: r.dongName
         }))
       }
     },

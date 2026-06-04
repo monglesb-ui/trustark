@@ -70,7 +70,10 @@ export const serverEnv = {
     process.env.NEXT_PUBLIC_LAW_API_URL,
 
   // 소상공인진흥공단 상권정보 (data.go.kr B553077) — 반경 내 상가업소·업종별 분포·매출 추이
-  commercialApiKey: process.env.COMMERCIAL_API_KEY
+  commercialApiKey: process.env.COMMERCIAL_API_KEY,
+
+  // 국토교통부 토지이용계획정보 (LURIS, data.go.kr B551023) — 용도지역·지구단위계획·도시계획시설
+  landUseApiKey: process.env.LAND_USE_API_KEY
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {
