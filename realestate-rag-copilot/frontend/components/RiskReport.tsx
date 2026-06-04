@@ -1298,6 +1298,8 @@ export function RiskReport({
           <h2 className="mt-3 font-serif text-4xl font-black text-ink">곧 출시 — 입력값 접수 완료</h2>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/75">{report.summary}</p>
 
+          <PlannerInsightPanel planner={report.planner} />
+
           {placeholderPreviewItems.length > 0 ? (
             <div className="mt-5 rounded-md border border-white/70 bg-white/85 p-4">
               <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">

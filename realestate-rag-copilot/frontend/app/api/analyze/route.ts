@@ -387,15 +387,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "분석 요청 형식이 올바르지 않습니다." }, { status: 400 });
   }
 
-  // === 창업·상가 모드: placeholder + 부분 실데이터 (Competition Density 등) === //
+  // === 창업·상가 모드: placeholder + 부분 실데이터 (Planner + Competition Density 등) === //
   if (payload.mode && payload.mode !== "real_estate") {
     const trace = createTraceRecorder();
     const base = buildModePlaceholder(payload);
 
-    // 1) 좌표 변환 (부동산 모드의 Location Context Agent 재사용)
+    // 1) Planner — 의도 분류 + 실행 계획 (OpenAI 사용 가시화). 부동산 모드와 동일.
+    const planner: PlannerOutput | null = await runPlannerAgent({ payload, trace });
+
+    // 2) 좌표 변환 (부동산 모드의 Location Context Agent 재사용)
     const geocode = await runLocationContextAgent({ payload, trace });
 
-    // 2) Competition Density — business_permit 모드에서만 의미 있음
+    // 3) Competition Density — business_permit 모드에서만 의미 있음
     const competitionFinding =
       payload.mode === "business_permit"
         ? await runCompetitionDensityAgent({ payload, geocode, trace, radiusMeters: 500 })
@@ -433,6 +436,7 @@ export async function POST(request: Request) {
       ...base,
       data_statuses: enrichedStatuses,
       evidence: enrichedEvidence,
+      planner: planner ?? undefined,
       business_findings: competitionFinding
         ? { competition: competitionFinding }
         : undefined,
