@@ -70,9 +70,14 @@ export const serverEnv = {
   // 학교알리미 / NEIS (open.neis.go.kr) — 학교 좌표·정화구역 검증
   neisApiKey: process.env.NEIS_API_KEY,
 
-  // 자치법규(ELIS) / 법제처 — 조례·규칙 본문
-  // NOTE: 현재 NEXT_PUBLIC_ 접두어로 등록돼 있어 브라우저 노출 위험. 가능하면 LAW_API_KEY로 이전 권장.
+  // 자치법규(ELIS) / 법제처 국가법령정보 공동활용 — OC 인증 파라미터값
+  // 다양한 명칭 fallback (OC 단독부터 LAW_API_KEY까지)
   lawApiKey:
+    process.env.OC ??
+    process.env.LAW_OC ??
+    process.env.LAW_API_OC ??
+    process.env.LAWGOKR_OC ??
+    process.env.NATIONAL_LAW_OC ??
     process.env.LAW_API_KEY ??
     process.env.ELIS_API_KEY ??
     process.env.NEXT_PUBLIC_LAW_API_URL,
