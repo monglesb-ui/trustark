@@ -25,6 +25,7 @@ import { runPlannerAgent } from "@/lib/server/agent-runtime/agents/planner-agent
 import { runSummarizerAgent } from "@/lib/server/agent-runtime/agents/summarizer-agent";
 import { runCompetitionDensityAgent } from "@/lib/server/agent-runtime/agents/competition-density-agent";
 import { runSchoolZoneAgent } from "@/lib/server/agent-runtime/agents/school-zone-agent";
+import { runPropertyValueAgent } from "@/lib/server/agent-runtime/agents/property-value-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -411,6 +412,12 @@ export async function POST(request: Request) {
         ? await runSchoolZoneAgent({ payload, trace })
         : null;
 
+    // 5) Property Value — commercial_use 모드 (상가 시세, 부동산 Market Data Agent 재활용)
+    const propertyValueFinding =
+      payload.mode === "commercial_use"
+        ? await runPropertyValueAgent({ payload, trace })
+        : null;
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -451,6 +458,9 @@ export async function POST(request: Request) {
               ...(schoolZoneFinding ? { school_zone: schoolZoneFinding } : {})
             }
           : undefined,
+      commercial_findings: propertyValueFinding
+        ? { property_value: propertyValueFinding }
+        : undefined,
       location: geocode.result
         ? {
             lat: geocode.result.lat,

@@ -245,9 +245,29 @@ export type BusinessPermitFindings = {
   // 이후 추가될 항목: zoning, license_requirement, building_suitability, youth_protection
 };
 
+export type PropertyValueFinding = {
+  region_label: string;
+  reference_property_type: string;
+  average_sale_price?: number | null;
+  average_deposit?: number | null;
+  average_monthly_rent?: number | null;
+  sale_sample_size: number;
+  rent_sample_size: number;
+  deal_months: string[];
+  source: string;
+  diagnostic: string;
+  note: string;
+};
+
+export type CommercialUseFindings = {
+  property_value?: PropertyValueFinding;
+  // 이후 추가될 항목: possible_business, cap_rate, vacancy_trend
+};
+
 export type AnalyzeResponse = {
   requested_mode?: AnalysisMode;
   business_findings?: BusinessPermitFindings;
+  commercial_findings?: CommercialUseFindings;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

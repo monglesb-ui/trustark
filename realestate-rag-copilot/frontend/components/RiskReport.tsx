@@ -190,6 +190,68 @@ function CompetitionDensityCard({
   );
 }
 
+function PropertyValueCard({
+  finding
+}: {
+  finding: NonNullable<AnalyzeResponse["commercial_findings"]>["property_value"];
+}) {
+  if (!finding) return null;
+  const formatKRW = (n: number | null | undefined) => {
+    if (n == null || n === 0) return "—";
+    if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(2)}억`;
+    if (n >= 10_000) return `${(n / 10_000).toFixed(0)}만`;
+    return n.toLocaleString("ko-KR");
+  };
+  const hasData = finding.sale_sample_size > 0 || finding.rent_sample_size > 0;
+  const tone = hasData ? "border-moss/45 bg-moss/10 text-moss" : "border-ink/15 bg-ink/5 text-ink/55";
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            {finding.region_label} 인근 시세 (참고)
+          </h3>
+        </div>
+        <span className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-black ${tone}`}>
+          {hasData ? `${finding.sale_sample_size + finding.rent_sample_size}건 매칭` : "데이터 부족"}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">평균 매매가</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {formatKRW(finding.average_sale_price)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">매매 {finding.sale_sample_size}건</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">평균 보증금</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {formatKRW(finding.average_deposit)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">전월세 {finding.rent_sample_size}건</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">평균 월세</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {formatKRW(finding.average_monthly_rent)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">월세 거래</p>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-ink/75">{finding.note}</p>
+      <p className="mt-2 text-[0.7rem] text-ink/55">
+        ※ 출처: {finding.source}. {finding.reference_property_type}
+      </p>
+    </section>
+  );
+}
+
 function SchoolZoneCard({
   finding
 }: {
@@ -1435,6 +1497,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.business_findings?.school_zone ? (
         <SchoolZoneCard finding={report.business_findings.school_zone} />
+      ) : null}
+
+      {isPlaceholderMode && report.commercial_findings?.property_value ? (
+        <PropertyValueCard finding={report.commercial_findings.property_value} />
       ) : null}
 
       {!isPlaceholderMode ? (
