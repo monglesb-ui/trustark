@@ -1,5 +1,6 @@
 import type { AnalyzeRequest, NaverContextFinding } from "@/lib/types";
 import { searchNaverNews, searchNaverWeb, type NaverSearchResult } from "@/lib/server/naver-search";
+import { searchXRecent } from "@/lib/server/x-search";
 import type { TraceRecorder } from "../trace";
 
 const AGENT = "Search Context Agent" as const;
@@ -56,7 +57,7 @@ export async function runLocalContextLightAgent({
   const inputSummary = `web="${queries.web}" news="${queries.news}"`;
 
   try {
-    const [web, news] = await Promise.all([
+    const [web, news, xResult] = await Promise.all([
       trace.run(
         AGENT,
         "naverWebSearch",
@@ -76,10 +77,32 @@ export async function runLocalContextLightAgent({
           status: result.items.length > 0 ? "success" : "missing",
           outputSummary: `News ${result.total}건 검색 · ${result.items.length}건 노출`
         })
+      ),
+      trace.run(
+        AGENT,
+        "xRecentSearch",
+        queries.web,
+        () => searchXRecent({ query: `${queries.web} -is:retweet lang:ko`, maxResults: 10 }),
+        (result) => ({
+          status: result.ok && result.tweets.length > 0 ? "success" : result.ok ? "missing" : "failed",
+          outputSummary: result.ok
+            ? `X tweets=${result.tweets.length} (${result.attempt.resultCount ?? 0}건)`
+            : `X 실패 · ${result.attempt.error?.slice(0, 80) ?? "unknown"}`
+        })
       )
     ]);
 
-    const items = [...topItems(web, 4), ...topItems(news, 4)];
+    const items = [
+      ...topItems(web, 3),
+      ...topItems(news, 3),
+      ...xResult.tweets.slice(0, 3).map((t) => ({
+        title: t.text.replace(/\s+/g, " ").slice(0, 80),
+        link: `https://twitter.com/i/web/status/${t.id}`,
+        description: t.text,
+        pubDate: t.created_at,
+        kind: "x" as const
+      }))
+    ];
     if (items.length === 0) {
       trace.record(AGENT, "buildLocalContext", inputSummary, "검색 결과 없음", "missing");
       return null;

@@ -238,10 +238,12 @@ function LocalContextCard({
                 className={`shrink-0 rounded-md border px-2 py-0.5 text-[0.65rem] font-black uppercase ${
                   item.kind === "news"
                     ? "border-brass/40 bg-brass/10 text-brass"
-                    : "border-moss/40 bg-moss/10 text-moss"
+                    : item.kind === "x"
+                      ? "border-ink/40 bg-ink/10 text-ink"
+                      : "border-moss/40 bg-moss/10 text-moss"
                 }`}
               >
-                {item.kind === "news" ? "뉴스" : "웹"}
+                {item.kind === "news" ? "뉴스" : item.kind === "x" ? "X" : "웹"}
               </span>
             </div>
             {item.description ? (

@@ -269,7 +269,7 @@ export type NaverContextItem = {
   link: string;
   description: string;
   pubDate?: string;
-  kind: "web" | "news";
+  kind: "web" | "news" | "x";
 };
 
 export type NaverContextFinding = {

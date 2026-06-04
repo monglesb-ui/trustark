@@ -81,7 +81,10 @@ export const serverEnv = {
   commercialApiKey: process.env.COMMERCIAL_API_KEY,
 
   // 국토교통부 토지이용계획정보 (LURIS, data.go.kr B551023) — 용도지역·지구단위계획·도시계획시설
-  landUseApiKey: process.env.LAND_USE_API_KEY
+  landUseApiKey: process.env.LAND_USE_API_KEY,
+
+  // X (구 Twitter) API v2 — Bearer Token (App-only auth). Recent search 등
+  xApiKey: process.env.X_API_KEY ?? process.env.TWITTER_BEARER_TOKEN
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {
