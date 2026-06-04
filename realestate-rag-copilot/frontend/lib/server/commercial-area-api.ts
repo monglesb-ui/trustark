@@ -171,8 +171,12 @@ export async function callCommercial<T = Record<string, unknown>>(
     attempt.totalCount = body.totalCount;
     attempt.rowCount = items.length;
 
-    if (header?.resultMsg && header.resultMsg !== "NORMAL_SERVICE" && header.resultMsg !== "NORMAL SERVICE.") {
-      attempt.error = header.resultMsg;
+    // data.go.kr resultMsg는 서비스별로 NORMAL_SERVICE / NORMAL SERVICE / NORMAL SERVICE. 등으로 다양함
+    // → "NORMAL"로 시작하면 정상으로 간주 (대소문자 무시 + 공백/언더스코어 정규화)
+    const normalizedMsg = header?.resultMsg?.replace(/[_.\s]+/g, " ").trim().toUpperCase();
+    const isNormal = !normalizedMsg || normalizedMsg.startsWith("NORMAL");
+    if (!isNormal) {
+      attempt.error = header?.resultMsg;
       return { ok: false, items, totalCount: body.totalCount ?? 0, rawText: text, attempt };
     }
 
