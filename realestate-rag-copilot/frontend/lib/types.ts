@@ -217,9 +217,32 @@ export type CompetitionDensityFinding = {
   note: string;
 };
 
+export type SchoolKind = "초등학교" | "중학교" | "고등학교" | "특수학교" | "기타";
+
+export type SchoolZoneImpact = "low" | "medium" | "high";
+
+export type SchoolZoneFinding = {
+  district: string;                 // 사용자 자치구 (예: 양천구)
+  total_schools_in_district: number;
+  nearby_schools: Array<{
+    name: string;
+    kind: string;                   // 초등학교/중학교/고등학교/...
+    address: string;
+    matchedBy: "same_road" | "same_district";  // 매칭 방식
+  }>;
+  school_kind_counts: Record<string, number>;  // {"초등학교": 5, "중학교": 2, ...}
+  business_type_label: string;
+  impact_level: SchoolZoneImpact;
+  impact_message: string;            // 사용자 업종 기반 영향 안내
+  source: string;
+  diagnostic: string;
+  note: string;
+};
+
 export type BusinessPermitFindings = {
   competition?: CompetitionDensityFinding;
-  // 이후 추가될 항목: zoning, school_zone, license_requirement, building_suitability, youth_protection
+  school_zone?: SchoolZoneFinding;
+  // 이후 추가될 항목: zoning, license_requirement, building_suitability, youth_protection
 };
 
 export type AnalyzeResponse = {

@@ -24,6 +24,7 @@ import { recordRuntimeFallback, runValidationAgent } from "@/lib/server/agent-ru
 import { runPlannerAgent } from "@/lib/server/agent-runtime/agents/planner-agent";
 import { runSummarizerAgent } from "@/lib/server/agent-runtime/agents/summarizer-agent";
 import { runCompetitionDensityAgent } from "@/lib/server/agent-runtime/agents/competition-density-agent";
+import { runSchoolZoneAgent } from "@/lib/server/agent-runtime/agents/school-zone-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -404,6 +405,12 @@ export async function POST(request: Request) {
         ? await runCompetitionDensityAgent({ payload, geocode, trace, radiusMeters: 500 })
         : null;
 
+    // 4) School Zone — business_permit 모드 (학교 정화구역 영향)
+    const schoolZoneFinding =
+      payload.mode === "business_permit"
+        ? await runSchoolZoneAgent({ payload, trace })
+        : null;
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -437,9 +444,13 @@ export async function POST(request: Request) {
       data_statuses: enrichedStatuses,
       evidence: enrichedEvidence,
       planner: planner ?? undefined,
-      business_findings: competitionFinding
-        ? { competition: competitionFinding }
-        : undefined,
+      business_findings:
+        competitionFinding || schoolZoneFinding
+          ? {
+              ...(competitionFinding ? { competition: competitionFinding } : {}),
+              ...(schoolZoneFinding ? { school_zone: schoolZoneFinding } : {})
+            }
+          : undefined,
       location: geocode.result
         ? {
             lat: geocode.result.lat,

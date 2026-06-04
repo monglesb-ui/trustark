@@ -190,6 +190,84 @@ function CompetitionDensityCard({
   );
 }
 
+function SchoolZoneCard({
+  finding
+}: {
+  finding: NonNullable<AnalyzeResponse["business_findings"]>["school_zone"];
+}) {
+  if (!finding) return null;
+  const impactTone =
+    finding.impact_level === "high"
+      ? "border-clay/45 bg-clay/10 text-clay"
+      : finding.impact_level === "medium"
+        ? "border-brass/45 bg-brass/10 text-brass"
+        : "border-moss/45 bg-moss/10 text-moss";
+  const impactLabel =
+    finding.impact_level === "high" ? "영향 큼" : finding.impact_level === "medium" ? "조건부" : "영향 적음";
+  const kindEntries = Object.entries(finding.school_kind_counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            {finding.district} 학교환경위생정화구역 영향 검토
+          </h3>
+        </div>
+        <span className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-black ${impactTone}`}>
+          {impactLabel}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">자치구 학교 수</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">{finding.total_schools_in_district}</p>
+          <p className="mt-1 text-xs font-bold text-ink/55">건</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4 sm:col-span-2">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">학교 종류별</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            {kindEntries.slice(0, 5).map(([kind, count]) => (
+              <span key={kind} className="rounded-md border border-ink/10 bg-white px-2 py-1 font-bold text-ink/75">
+                {kind} <strong className="text-ink">{count}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-ink/75">{finding.impact_message}</p>
+
+      {finding.nearby_schools.length > 0 ? (
+        <div className="mt-4 rounded-md border border-ink/10 bg-white p-4">
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/45">
+            {finding.nearby_schools[0]?.matchedBy === "same_road" ? "같은 도로 학교" : "자치구 내 학교(샘플)"}
+          </p>
+          <ul className="mt-2 grid gap-1.5 text-xs text-ink/75">
+            {finding.nearby_schools.slice(0, 8).map((school, index) => (
+              <li key={`${school.name}-${index}`} className="flex items-start gap-2">
+                <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-moss" />
+                <span>
+                  <strong className="text-ink">{school.name}</strong>
+                  <span className="text-ink/55"> · {school.kind}</span>
+                  {school.address ? <span className="text-ink/45"> · {school.address}</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: {finding.source}. {finding.note}
+      </p>
+    </section>
+  );
+}
+
 function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] }) {
   if (!planner) return null;
   const hasTags = planner.intent_tags.length > 0;
@@ -1353,6 +1431,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.business_findings?.competition ? (
         <CompetitionDensityCard finding={report.business_findings.competition} />
+      ) : null}
+
+      {isPlaceholderMode && report.business_findings?.school_zone ? (
+        <SchoolZoneCard finding={report.business_findings.school_zone} />
       ) : null}
 
       {!isPlaceholderMode ? (
