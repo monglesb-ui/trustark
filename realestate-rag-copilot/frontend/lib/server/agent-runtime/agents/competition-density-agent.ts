@@ -427,9 +427,11 @@ export async function runCompetitionDensityAgent({
           address: s.rdnmAdr ?? s.lnoAdr
         }));
 
+        // 카드 헤더에 표시될 반경은 사용자가 입력한 radiusMeters를 유지 (혼란 방지).
+        // 실제 검색 반경 차이는 note 텍스트로만 명시.
         const finding: CompetitionDensityFinding = {
           business_type_label: businessLabel,
-          radius_meters: effectiveRadius,
+          radius_meters: radiusMeters,
           total_stores: filtered.length,
           all_stores_in_radius: result.items.length,
           density_label: density.label,
