@@ -126,7 +126,7 @@ function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] 
     <div className="mt-5 rounded-md border border-moss/25 bg-moss/10 p-4">
       <div className="flex items-center gap-2 text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
         <NotebookTabs aria-hidden="true" size={14} />
-        AI가 파악한 사용자 의도
+        터무니 플래너가 읽은 당신의 의도
       </div>
       {hasSummary ? (
         <p className="mt-2 border-l-2 border-moss/40 pl-3 text-sm italic leading-6 text-ink/80">
@@ -159,7 +159,7 @@ function PlannerInsightPanel({ planner }: { planner: AnalyzeResponse["planner"] 
       {planner.execution_plan?.length ? (
         <div className="mt-4 rounded-md border border-white/70 bg-white/80 p-3">
           <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
-            AI가 결정한 실행 계획
+            터무니가 정한 검토 우선순위
           </p>
           <ul className="mt-2 space-y-1.5 text-xs text-ink/75">
             {planner.execution_plan.map((entry) => (
@@ -195,7 +195,7 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: AnalyzeResponse["score_
   const baseWidth = (breakdown.base_score / 100) * 100;
   return (
     <div className="mt-5 rounded-md border border-ink/10 bg-white/70 p-4">
-      <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-ink/45">점수 분해</p>
+      <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-ink/45">근거 분해</p>
       <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-ink/10">
         <div className={`h-full ${BREAKDOWN_BASE_COLOR}`} style={{ width: `${baseWidth}%` }} />
         {breakdown.adjustments.map((adj, index) => (
@@ -243,7 +243,7 @@ function marketScopeLabel(report: AnalyzeResponse) {
 }
 
 function sourceLabel(source: string) {
-  if (source.startsWith("rag_docs")) return "RAG 문서";
+  if (source.startsWith("rag_docs")) return "법령·체크리스트";
   if (source.startsWith("naver-search")) return "네이버 검색";
   if (source.startsWith("data.go.kr")) return "공공데이터 API";
   if (source.startsWith("codef")) return "CODEF API";
@@ -306,7 +306,7 @@ function makeReportHtml(report: AnalyzeResponse) {
   const unverifiedItems = report.sections.unverified_items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
   const registryItems = report.registry
     ? `
-      <h2>등기부등본 요약</h2>
+      <h2>권리 근거</h2>
       <dl class="grid">
         <div><dt>상태</dt><dd>${escapeHtml(report.registry.status === "confirmed" ? "권리관계 요약 확인" : "권리관계 미확인")}</dd></div>
         <div><dt>소유자</dt><dd>${escapeHtml(report.registry.ownerMasked ?? "마스킹/미확인")}</dd></div>
@@ -322,7 +322,7 @@ function makeReportHtml(report: AnalyzeResponse) {
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>Trust Ark 계약 리스크 리포트</title>
+  <title>Tumuni 계약 리스크 리포트</title>
   <style>
     body { margin: 0; padding: 48px; font-family: "Noto Sans KR", system-ui, sans-serif; color: #222019; background: #f5f2ea; }
     main { max-width: 900px; margin: 0 auto; background: white; border: 1px solid #e7e2d6; padding: 48px; }
@@ -342,15 +342,15 @@ function makeReportHtml(report: AnalyzeResponse) {
 </head>
 <body>
   <main>
-    <div class="kicker">Trust Ark · 부동산 계약 리스크 코파일럿</div>
+    <div class="kicker">Tumuni · 부동산 계약 리스크 코파일럿</div>
     <h1>전세 계약 사전 위험 검토 리포트</h1>
     <p class="meta">${escapeHtml(report.location.address)} · 생성일 ${todayLabel()} · ${escapeHtml(dataMode(report.data_statuses))}</p>
     <section class="summary">
-      <strong>종합 위험도: ${escapeHtml(report.risk_level)}</strong>
+      <strong>터무니지수: ${escapeHtml(report.risk_level)}</strong>
       <div class="score">${report.risk_score}</div>
       <p>${escapeHtml(report.summary)}</p>
     </section>
-    <h2>입력 단지 실거래가</h2>
+    <h2>실거래 근거</h2>
     <dl class="grid">
       <div><dt>조회 기준</dt><dd>${escapeHtml(marketScopeLabel(report))}</dd></div>
       <div><dt>입력 보증금</dt><dd>${money(report.market_comparison.input_deposit)}</dd></div>
@@ -361,21 +361,21 @@ function makeReportHtml(report: AnalyzeResponse) {
       <div><dt>전세가율</dt><dd>${report.market_comparison.jeonse_ratio ?? "-"}%</dd></div>
       <div><dt>표본 수</dt><dd>전월세 ${report.market_comparison.rent_sample_size ?? report.market_comparison.sample_size}건 · 매매 ${report.market_comparison.sale_sample_size ?? 0}건</dd></div>
     </dl>
-    <h2>데이터 조회 상태</h2>
+    <h2>근거 데이터 현황</h2>
     <ul>${dataStatusItems}</ul>
     ${registryItems}
-    <h2>핵심 위험 신호</h2>
+    <h2>핵심 근거 신호</h2>
     <ul>${signalItems || evidenceItems}</ul>
     <h2>핵심 근거</h2>
     <ul>${evidenceItems}</ul>
     <h2>확인/미확인 항목</h2>
     <div class="grid">
-      <div><strong>확인된 사실</strong><ul>${confirmedItems}</ul></div>
+      <div><strong>확인된 터무니</strong><ul>${confirmedItems}</ul></div>
       <div><strong>미확인 항목</strong><ul>${unverifiedItems}</ul></div>
     </div>
-    <h2>다음 확인 액션</h2>
+    <h2>터무니를 채우는 다음 단계</h2>
     <ol>${actionItems}</ol>
-    <h2>주의 문구</h2>
+    <h2>한계 안내</h2>
     <div class="notice"><ul>${warningItems}</ul></div>
   </main>
 </body>
@@ -450,7 +450,7 @@ function DataStatusStrip({ report, framed = true }: { report: AnalyzeResponse; f
   const content = (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-black text-ink">데이터 조회 상태</h2>
+        <h2 className="text-sm font-black text-ink">근거 데이터 현황</h2>
         <span className="text-xs font-bold text-ink/45">API/fallback trace</span>
       </div>
       <div className="grid gap-2 md:grid-cols-4">
@@ -656,7 +656,7 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       purpose: "CODEF 등기부등본 API 연결 상태를 확인하고, 응답이 확보되면 권리관계 리스크 후보를 민감정보 마스킹 후 요약합니다.",
       judgment:
         report.registry?.status === "confirmed"
-          ? "등기부등본 요약이 확보되었습니다. 소유자명과 등기번호 등 민감정보는 마스킹했고, 근저당·압류·신탁 후보만 위험 신호로 분리했습니다."
+          ? "권리 근거가 확보되었습니다. 소유자명과 등기번호 등 민감정보는 마스킹했고, 근저당·압류·신탁 후보만 근거 신호로 분리했습니다."
           : report.registry?.status === "requires_user_action"
             ? "등기부등본 열람은 수수료와 추가인증이 발생할 수 있어 자동 분석에서는 실행하지 않았습니다. 사용자가 별도로 실행해야 합니다."
             : "등기부등본 원문 권리관계가 아직 확정되지 않았습니다. CODEF 직접인증 입력값 또는 원문 등본 확인이 필요합니다.",
@@ -675,15 +675,15 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
     {
       name: "Risk Scoring Agent",
       status: "완료",
-      purpose: "시세 차이, 표본 수, RAG 근거, 미확인 권리관계를 종합해 위험 점수와 위험 신호를 만들었습니다.",
+      purpose: "시세 차이, 표본 수, RAG 근거, 미확인 권리관계를 종합해 터무니 점수와 근거 신호를 만들었습니다.",
       judgment: `${report.risk_level} 판정입니다. 이 점수는 계약 가능 여부가 아니라 추가 확인 필요도를 나타냅니다.`,
       evidence: [
-        `위험 점수는 ${report.risk_score}점입니다.`,
-        `위험도는 ${report.risk_level}입니다.`,
-        `구조화된 위험 신호는 ${(report.risk_signals ?? []).length || 1}건입니다.`
+        `터무니 점수는 ${report.risk_score}점입니다.`,
+        `터무니지수는 ${report.risk_level}입니다.`,
+        `구조화된 근거 신호는 ${(report.risk_signals ?? []).length || 1}건입니다.`
       ],
       confidence: report.market_comparison.sample_size >= 10 ? "중간" : "낮음",
-      whyItMatters: "위험 점수는 사용자가 어떤 항목부터 확인해야 하는지 우선순위를 잡기 위한 신호입니다.",
+      whyItMatters: "터무니 점수는 사용자가 어떤 항목부터 확인해야 하는지 우선순위를 잡기 위한 신호입니다.",
       nextCheck: report.next_actions.slice(0, 3),
       traces: tracesForAgent(report, "Risk Scoring Agent")
     },
@@ -691,7 +691,7 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       name: "Summarizer Agent",
       status: summarizerRan ? "완료" : summarizerTraces.length > 0 ? "실패" : "건너뜀",
       purpose:
-        "누적된 분석 결과(시세·등기·건축물대장·위험 점수·미확인 항목)와 Planner가 추정한 사용자 의도를 받아 종합 요약 문장과 우선순위가 매겨진 다음 액션 리스트를 LLM이 자연어로 재작성합니다.",
+        "누적된 분석 결과(시세·등기·건축물대장·터무니 점수·미확인 항목)와 Planner가 추정한 사용자 의도를 받아 종합 요약 문장과 우선순위가 매겨진 다음 액션 리스트를 LLM이 자연어로 재작성합니다.",
       judgment: summarizerRan
         ? `요약 ${report.summary.length}자와 다음 액션 ${report.next_actions.length}개를 사용자 의도 기준으로 재구성했습니다.`
         : "Summarizer를 건너뛰었거나 호출이 실패해 템플릿 요약과 원래 액션 순서가 그대로 사용됐습니다.",
@@ -732,11 +732,11 @@ function buildAgentReports(report: AnalyzeResponse, ragEvidenceCount: number): A
       judgment: "현재 결과는 참고 분석이며, 계약 안전 여부를 확정하지 않습니다.",
       evidence: [
         "계약 가능/안전 같은 단정 표현을 사용하지 않았습니다.",
-        `주의 문구 ${report.warnings.length}건을 유지했습니다.`,
+        `한계 안내 ${report.warnings.length}건을 유지했습니다.`,
         `미확인 항목 ${report.sections.unverified_items.length}건을 별도 표시했습니다.`
       ],
       confidence: "높음",
-      whyItMatters: "부동산 계약 리스크 분석은 법률·권리관계 확인을 대체할 수 없기 때문에 단정 표현을 막는 안전장치가 필요합니다.",
+      whyItMatters: "터무니 검토는 법률·권리관계 확인을 대체할 수 없기 때문에 단정 표현을 막는 안전장치가 필요합니다.",
       nextCheck: ["등기부등본 원문 확인", "공인중개사·법률 전문가 검토", "보증보험 가입 가능 여부 최종 확인"],
       traces: tracesForAgent(report, "Validation Agent")
     }
@@ -757,8 +757,8 @@ function AgentReportPanel({ reports }: { reports: AgentReport[] }) {
     <section className="dashboard-panel p-5 sm:p-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Trust Ark Agent Review Notes</p>
-          <h2 className="mt-2 text-2xl font-black text-ink">Agent 검토 노트</h2>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-moss">Tumuni Agent Review Notes</p>
+          <h2 className="mt-2 text-2xl font-black text-ink">터무니 에이전트 검토 노트</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/65">
             각 Agent가 어떤 판단을 했고, 그 판단이 사용자에게 왜 중요한지와 다음 확인 항목을 정리했습니다.
           </p>
@@ -908,8 +908,8 @@ export function RiskReport({
   const documentFacts = useMemo(
     () => [
       ["대상 주소", report.location.address],
-      ["위험도", report.risk_level],
-      ["위험 점수", `${report.risk_score}/100`],
+      ["터무니지수", report.risk_level],
+      ["터무니 점수", `${report.risk_score}/100`],
       ["입력 보증금", money(report.market_comparison.input_deposit)],
       ["전월세 평균 보증금", money(report.market_comparison.nearby_avg_deposit)],
       ["매매 평균 실거래가", money(report.market_comparison.nearby_avg_sale_price)],
@@ -1058,10 +1058,10 @@ export function RiskReport({
         <AgentReportPanel reports={agentReports} />
       ) : layout === "document" ? (
         <article className="dashboard-panel mx-auto w-full max-w-4xl p-8 sm:p-10">
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-moss">Trust Ark Report</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-moss">Tumuni Report</p>
           <h1 className="mt-3 font-serif text-4xl font-black text-ink">전세 계약 사전 위험 검토 리포트</h1>
           <p className="mt-3 text-sm leading-6 text-ink/65">
-            본 문서는 현재 입력값, 데이터 조회 상태, RAG 체크리스트 근거를 바탕으로 생성된 참고용 분석 리포트입니다.
+            본 문서는 현재 입력값, 근거 데이터 현황, RAG 체크리스트 근거를 바탕으로 생성된 참고용 분석 리포트입니다.
           </p>
 
           <section className={`mt-8 rounded-lg border p-5 ${tone}`}>
@@ -1072,7 +1072,7 @@ export function RiskReport({
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-ink/72">{report.summary}</p>
               </div>
               <div className="metric-tile px-6 py-4 text-center">
-                <p className="text-xs font-bold text-ink/55">위험 점수</p>
+                <p className="text-xs font-bold text-ink/55">터무니 점수</p>
                 <p className="text-4xl font-black text-ink">{report.risk_score}</p>
               </div>
             </div>
@@ -1091,7 +1091,7 @@ export function RiskReport({
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="02" title="핵심 위험 신호" description={`${displaySignals.length}개`} />
+            <SectionTitle number="02" title="핵심 근거 신호" description={`${displaySignals.length}개`} />
             <div className="grid gap-3">
               {displaySignals.map((item, index) => (
                 <div key={`${item.source}-doc-${index}`} className="rounded-md border border-ink/10 bg-white p-4">
@@ -1108,13 +1108,13 @@ export function RiskReport({
           </section>
 
           <section className="mt-8">
-            <SectionTitle number="03" title="데이터 조회 상태" description={modeLabel} />
+            <SectionTitle number="03" title="근거 데이터 현황" description={modeLabel} />
             <DataStatusStrip report={report} framed={false} />
           </section>
 
           {buildingRegister ? (
             <section className="mt-8">
-              <SectionTitle number="04" title="건축물대장 요약" />
+              <SectionTitle number="04" title="건축 근거" />
               <dl className="grid gap-3 sm:grid-cols-2">
                 {[
                   ["주용도", buildingRegister.mainPurpose ?? buildingRegister.etcPurpose ?? "-"],
@@ -1132,7 +1132,7 @@ export function RiskReport({
           ) : null}
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "05" : "04"} title="등기부등본 요약" />
+            <SectionTitle number={buildingRegister ? "05" : "04"} title="권리 근거" />
             <dl className="grid gap-3 sm:grid-cols-2">
               {[
                 ["상태", registryVerified ? "권리관계 요약 확인" : "권리관계 미확인"],
@@ -1154,12 +1154,12 @@ export function RiskReport({
           </section>
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "06" : "05"} title="RAG 근거 문서" />
+            <SectionTitle number={buildingRegister ? "06" : "05"} title="법령·체크리스트 근거" />
             <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
           </section>
 
           <section className="mt-8">
-            <SectionTitle number={buildingRegister ? "07" : "06"} title="다음 확인 액션" />
+            <SectionTitle number={buildingRegister ? "07" : "06"} title="터무니를 채우는 다음 단계" />
             <ol className="grid gap-2 text-sm leading-6 text-ink/75">
               {report.next_actions.map((item) => (
                 <li key={item} className="rounded-md border border-ink/10 bg-white p-3">{item}</li>
@@ -1171,7 +1171,7 @@ export function RiskReport({
             <SectionTitle number={buildingRegister ? "08" : "07"} title="검토 상태" />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-md border border-moss/20 bg-moss/10 p-4">
-                <h3 className="font-bold text-ink">확인된 사실</h3>
+                <h3 className="font-bold text-ink">확인된 터무니</h3>
                 <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/70">
                   {report.sections.confirmed_facts.map((item) => <li key={item}>{item}</li>)}
                 </ul>
@@ -1192,7 +1192,7 @@ export function RiskReport({
           <div>
             <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
               <Gauge aria-hidden="true" size={18} />
-              종합 위험도
+              터무니지수
             </div>
             <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
@@ -1209,7 +1209,7 @@ export function RiskReport({
             </div>
           </div>
           <div className="metric-tile grid place-items-center p-5 text-center">
-            <p className="text-sm font-bold text-ink/60">위험 점수</p>
+            <p className="text-sm font-bold text-ink/60">터무니 점수</p>
             <p className="mt-1 text-5xl font-black tabular-nums text-ink">{report.risk_score}</p>
             <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink/10">
               <div className="h-full rounded-full bg-current" style={{ width: `${report.risk_score}%` }} />
@@ -1219,7 +1219,7 @@ export function RiskReport({
       </section>
 
       <section className="dashboard-panel p-5">
-        <SectionTitle number="01" title="핵심 위험 신호" description={`${keySignals.length}개 감지`} />
+        <SectionTitle number="01" title="핵심 근거 신호" description={`${keySignals.length}개 감지`} />
         <div className="grid gap-3 md:grid-cols-2">
           {displaySignals.map((item, index) => (
             <article key={`${item.source}-${index}`} className="rounded-md border border-ink/10 bg-white p-4 shadow-sm">
@@ -1240,7 +1240,7 @@ export function RiskReport({
 
       <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <section className="dashboard-panel p-5">
-          <SectionTitle number="02" title="입력 단지 실거래가" description={marketScopeLabel(report)} />
+          <SectionTitle number="02" title="실거래 근거" description={marketScopeLabel(report)} />
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
             <Scale aria-hidden="true" size={20} className="text-moss" />
@@ -1287,7 +1287,7 @@ export function RiskReport({
       </div>
 
       <section>
-        <SectionTitle number="04" title="건축물대장 요약" description={buildingRegister ? "표제부 확인" : "미확보"} />
+        <SectionTitle number="04" title="건축 근거" description={buildingRegister ? "표제부 확인" : "미확보"} />
         {buildingRegister ? (
           <div className="dashboard-panel p-5">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1334,7 +1334,7 @@ export function RiskReport({
       </section>
 
       <section>
-        <SectionTitle number="05" title="등기부등본 요약" description={registryVerified ? "권리관계 요약" : "미확인"} />
+        <SectionTitle number="05" title="권리 근거" description={registryVerified ? "권리관계 요약" : "미확인"} />
         <div className="dashboard-panel p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -1396,7 +1396,7 @@ export function RiskReport({
       </section>
 
       <section>
-        <SectionTitle number="06" title="RAG 근거 문서" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
+        <SectionTitle number="06" title="법령·체크리스트 근거" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
         <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
       </section>
 
@@ -1404,7 +1404,7 @@ export function RiskReport({
         <section className="dashboard-panel p-5">
           <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
             <CheckCircle2 aria-hidden="true" size={20} className="text-moss" />
-            확인된 사실
+            확인된 터무니
           </h2>
           <ul className="grid gap-2 text-sm leading-6 text-ink/75">
             {report.sections.confirmed_facts.map((item) => <li key={item}>{item}</li>)}
@@ -1413,7 +1413,7 @@ export function RiskReport({
         <section className="dashboard-panel p-5">
           <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
             <ListChecks aria-hidden="true" size={20} className="text-brass" />
-            다음 확인 액션
+            터무니를 채우는 다음 단계
           </h2>
           <ul className="grid gap-2 text-sm leading-6 text-ink/75">
             {report.next_actions.map((item) => <li key={item}>{item}</li>)}
@@ -1422,7 +1422,7 @@ export function RiskReport({
         <section className="dashboard-panel p-5">
           <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
             <AlertTriangle aria-hidden="true" size={20} className="text-clay" />
-            주의 문구
+            한계 안내
           </h2>
           <ul className="grid gap-2 text-sm leading-6 text-ink/75">
             {report.warnings.map((item) => <li key={item}>{item}</li>)}

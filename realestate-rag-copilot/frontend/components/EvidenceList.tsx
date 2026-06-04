@@ -2,7 +2,7 @@ import { FileSearch } from "lucide-react";
 import type { EvidenceItem } from "@/lib/types";
 
 function sourceLabel(source: string) {
-  if (source.startsWith("rag_docs")) return "RAG 문서";
+  if (source.startsWith("rag_docs")) return "법령·체크리스트";
   if (source.startsWith("risk_rule")) return "규칙 엔진";
   return "참조 데이터";
 }
@@ -13,10 +13,10 @@ export function EvidenceList({ items }: { items: EvidenceItem[] }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileSearch aria-hidden="true" size={20} className="text-moss" />
-          <h2 className="text-lg font-bold">핵심 근거</h2>
+          <h2 className="text-lg font-bold">핵심 터무니</h2>
         </div>
         <span className="rounded-md border border-moss/20 bg-moss/10 px-2.5 py-1 text-xs font-bold text-moss">
-          RAG + 규칙 근거
+          법령 + 규칙 근거
         </span>
       </div>
       <ul className="grid gap-3">

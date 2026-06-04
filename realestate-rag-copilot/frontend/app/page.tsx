@@ -36,7 +36,7 @@ type AgentStep = {
 const agentSteps: AgentStep[] = [
   {
     name: "Market Data Agent",
-    shortName: "시세 표본",
+    shortName: "실거래 근거",
     role: "실거래가 API에서 입력 단지의 전월세·매매 표본을 우선 조회합니다.",
     preview: "단지명 매칭 · 전월세 표본 · 매매 표본 · 전세가율 계산",
     Icon: Database,
@@ -49,7 +49,7 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "RAG Evidence Agent",
-    shortName: "RAG 근거",
+    shortName: "법령 근거",
     role: "전세 위험 체크리스트에서 관련 근거를 검색합니다.",
     preview: "전세가율, 등기부등본, 보증보험 체크리스트 매칭",
     Icon: FileSearch,
@@ -61,7 +61,7 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "Search Context Agent",
-    shortName: "외부 검색",
+    shortName: "외부 맥락",
     role: "네이버 검색 API로 대상 주소와 단지 주변의 공개 웹·뉴스 맥락을 수집합니다.",
     preview: "웹 검색 tool · 뉴스 검색 tool · 외부 참고 근거 후보",
     Icon: Search,
@@ -74,7 +74,7 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "Location Context Agent",
-    shortName: "위치 맥락",
+    shortName: "위치 근거",
     role: "대상 주소와 주변 표본 marker를 지도 맥락으로 구성합니다.",
     preview: "네이버 지오코딩 · 대상 marker · 주변 marker",
     Icon: MapPinned,
@@ -86,7 +86,7 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "Building Register Agent",
-    shortName: "건축물대장",
+    shortName: "건축 근거",
     role: "건축HUB 표제부에서 건물 용도, 사용승인일, 위반건축물 여부를 확인합니다.",
     preview: "표제부 조회 · 주용도 · 사용승인일 · 위반건축물 여부",
     Icon: FileBadge,
@@ -99,7 +99,7 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "Registry Agent",
-    shortName: "등기 권리",
+    shortName: "권리 근거",
     role: "CODEF 등기부등본 API로 권리관계 조회 준비 상태와 근저당·압류·신탁 후보를 확인합니다.",
     preview: "유료 열람 분리 · 직접인증 입력값 점검 · 민감정보 마스킹",
     Icon: FileKey2,
@@ -112,12 +112,12 @@ const agentSteps: AgentStep[] = [
   },
   {
     name: "Risk Scoring Agent",
-    shortName: "위험 산정",
+    shortName: "터무니지수",
     role: "전세가율, 표본 신뢰도, 권리관계 미확인을 분리해 점수를 산정합니다.",
     preview: "전세가율 기준 점수 · 권리관계 보수 보정",
     Icon: ShieldCheck,
     logs: [
-      "실거래 매매가 기준 전세가율을 위험 점수의 주 기준으로 적용합니다.",
+      "실거래 매매가 기준 전세가율을 터무니 점수의 주 기준으로 적용합니다.",
       "가격 기준 위험과 등기부등본·선순위 권리 미확인을 별도 신호로 분리합니다.",
       "mock 또는 fallback에서 남은 오래된 위험 문구를 최신 API 결과와 동기화합니다."
     ]
@@ -126,7 +126,7 @@ const agentSteps: AgentStep[] = [
     name: "Report Agent",
     shortName: "리포트 생성",
     role: "대시보드와 문서형 리포트 문장을 조립합니다.",
-    preview: "핵심 위험 신호, 다음 액션, 주의 문구 생성",
+    preview: "핵심 근거 신호, 다음 액션, 주의 문구 생성",
     Icon: Sparkles,
     logs: [
       "확인된 사실, 가정, 미확인 항목을 리포트 섹션으로 조립합니다.",
@@ -160,12 +160,12 @@ const logDelayMs = 380;
 
 function dataMode(statuses: DataSourceStatus[] | undefined) {
   const items = statuses ?? [];
-  if (items.length === 0) return "Fallback 분석";
+  if (items.length === 0) return "근거 보강 필요";
   const successCount = items.filter((item) => item.status === "success").length;
   const fallbackCount = items.filter((item) => item.status !== "success").length;
-  if (successCount > 0 && fallbackCount > 0) return "Hybrid 분석";
-  if (successCount > 0) return "API 분석";
-  return "Fallback 분석";
+  if (successCount > 0 && fallbackCount > 0) return "근거 부분 확보";
+  if (successCount > 0) return "근거 충분";
+  return "근거 보강 필요";
 }
 
 function statusSummary(report: AnalyzeResponse | null) {
@@ -186,7 +186,7 @@ function statusSummary(report: AnalyzeResponse | null) {
       fallbackCount > 0
         ? `${fallbackCount}개 데이터 소스는 표본 없음/대체 표본 상태입니다. 리포트의 데이터 조회 상태에서 근거를 확인하세요.`
         : "핵심 데이터 소스가 API 조회 결과로 반영되었습니다.",
-    tone: mode === "API 분석" ? "border-moss/25 bg-moss/10" : "border-brass/30 bg-brass/10"
+    tone: mode === "근거 충분" ? "border-moss/25 bg-moss/10" : "border-brass/30 bg-brass/10"
   };
 }
 
@@ -232,9 +232,9 @@ function AnalyzingPanel({ activeStep, visibleLogCount }: { activeStep: number; v
             <LoaderCircle aria-hidden="true" size={21} className="animate-spin" />
           </span>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-white/55">Trust Ark Agent Runtime</p>
-            <h2 className="mt-1 text-xl font-bold">리스크 분석 진행 중</h2>
-            <p className="mt-1 text-sm text-white/68">RAG와 전문 Agent가 계약 리스크 근거를 단계별로 조립하고 있습니다.</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-white/55">Tumuni Agent Runtime</p>
+            <h2 className="mt-1 text-xl font-bold">터무니를 모으는 중</h2>
+            <p className="mt-1 text-sm text-white/68">RAG와 전문 에이전트가 실거래·법령·권리 근거를 단계별로 조립하고 있습니다.</p>
           </div>
           <div className="ml-auto hidden rounded-md border border-white/15 bg-white/10 px-3 py-2 text-sm font-black md:block">
             {progress}% 완료
@@ -418,7 +418,7 @@ export default function Home() {
           <div className="dashboard-panel flex h-full flex-col p-5">
             <div className="border-b border-ink/10 pb-5">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-black uppercase text-moss">Trust Ark</p>
+                <p className="text-xs font-black uppercase text-moss">Tumuni</p>
                 <button
                   type="button"
                   onClick={() => setDarkMode((value) => !value)}
@@ -431,16 +431,16 @@ export default function Home() {
                 </button>
               </div>
               <h1 className="mt-3 whitespace-nowrap font-serif text-[2.35rem] font-black leading-tight text-ink">
-                트러스트 아크
+                터무니
               </h1>
-              <p className="mt-2 text-sm font-bold text-moss">부동산 계약 리스크 코파일럿</p>
+              <p className="mt-2 text-sm font-bold text-moss">터를 읽고 무니를 더하다</p>
               <p className="mt-4 text-sm leading-6 text-ink/68">
-                계약 조건을 입력하면 실거래가 API, 대체 표본, RAG 체크리스트, Agent 흐름으로 리스크 신호를 분리합니다.
+                위치와 조건을 입력하면 실거래·법령·권리 근거를 모아 터무니있는 검토를 시작합니다.
               </p>
             </div>
 
             <section className="mt-5" aria-labelledby="pipeline-title">
-              <h2 id="pipeline-title" className="text-sm font-bold text-ink/80">분석 파이프라인</h2>
+              <h2 id="pipeline-title" className="text-sm font-bold text-ink/80">터무니 검토 흐름</h2>
               <div className="mt-3 grid gap-2">
                 {pipelineItems.map(([title, desc, Icon], index) => {
                   const done = stage === "report" || (stage === "analyzing" && index < activeStep);
@@ -469,7 +469,7 @@ export default function Home() {
                   {sidebarStatus.label}
                 </div>
                 <p className="mt-2 text-xs leading-5 text-ink/65">
-                  {sidebarStatus.detail} 실제 계약 판단은 등기부등본, 보증보험, 전문가 검토가 함께 필요합니다.
+                  {sidebarStatus.detail} 터무니가 모은 근거는 참고 정보이며, 실제 결정은 등기부등본·보증보험·전문가 검토와 함께 진행해 주세요.
                 </p>
               </div>
             </aside>
@@ -494,7 +494,7 @@ export default function Home() {
                   <ShieldCheck aria-hidden="true" size={34} className="mx-auto mb-3 text-moss" />
                   <h2 className="text-xl font-bold text-ink">분석 결과 대기 중</h2>
                   <p className="mt-2 max-w-xl text-sm leading-6">
-                    샘플 조건으로 분석을 실행하면 위험도, 시세 차이, 지도 marker, RAG 근거와 다음 액션이 이 영역에 정리됩니다.
+                    샘플 조건으로 분석을 실행하면 터무니지수, 시세 차이, 지도 marker, RAG 근거와 다음 액션이 이 영역에 정리됩니다.
                   </p>
                 </div>
               </section>

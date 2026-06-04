@@ -32,17 +32,17 @@ export function AnalysisForm({ loading, onSubmit }: Props) {
           <ClipboardCheck aria-hidden="true" size={22} />
         </span>
         <div>
-          <h2 className="text-xl font-bold">계약 조건 입력</h2>
+          <h2 className="text-xl font-bold">검토 조건 입력</h2>
           <p className="text-sm text-ink/65">샘플 주소: 서울시 마포구 성산동 000-00</p>
         </div>
         </div>
         <span className="rounded-md border border-moss/20 bg-moss/10 px-3 py-1.5 text-xs font-bold text-moss">
-          API/fallback 분석
+          터무니 검토
         </span>
       </div>
 
       <fieldset className="grid gap-4">
-        <legend className="sr-only">분석 조건</legend>
+        <legend className="sr-only">검토 조건</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
             계약 유형
@@ -107,7 +107,7 @@ export function AnalysisForm({ loading, onSubmit }: Props) {
         aria-live="polite"
       >
         <Search aria-hidden="true" size={19} />
-        {loading ? "분석 중" : "리스크 분석"}
+        {loading ? "터무니 모으는 중" : "터무니 검토 시작"}
       </button>
     </form>
   );

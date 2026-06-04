@@ -9,15 +9,15 @@ export function buildAnalysisSkeleton(payload: AnalyzeRequest): AnalyzeResponse 
       { id: "rent-market", label: "전월세 실거래가", status: "missing", detail: "조회 전" },
       { id: "sale-market", label: "매매 실거래가", status: "missing", detail: "조회 전" }
     ],
-    risk_level: "데이터 수집 중",
+    risk_level: "터무니 모으는 중",
     risk_score: 0,
     score_breakdown: {
       base_score: 0,
-      base_reason: "외부 시세 데이터 조회 전",
+      base_reason: "외부 근거 수집 전",
       adjustments: [],
       final_score: 0
     },
-    summary: "외부 데이터 조회 결과에 따라 위험도가 갱신됩니다.",
+    summary: "외부 데이터 근거를 모은 뒤 터무니지수가 갱신됩니다.",
     location: {
       lat: 0,
       lng: 0,
