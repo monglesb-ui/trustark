@@ -356,6 +356,7 @@ function buildModePlaceholder(payload: AnalyzeRequest): AnalyzeResponse {
   ];
   return {
     ...skeleton,
+    requested_mode: payload.mode,
     risk_level: "준비 중 모드",
     summary: placeholderMessage,
     data_statuses: statuses,
@@ -497,7 +498,10 @@ export async function POST(request: Request) {
       trace
     });
     const composedReport = runReportAgent({ report: summarizedReport, trace });
-    const finalReport = runValidationAgent({ report: composedReport, trace });
+    const finalReport: AnalyzeResponse = {
+      ...runValidationAgent({ report: composedReport, trace }),
+      requested_mode: payload.mode
+    };
 
     return NextResponse.json(withTraces(finalReport, trace.traces));
   } catch (error) {
@@ -525,7 +529,10 @@ export async function POST(request: Request) {
     };
     const scored = runRiskScoringAgent({ report: warned, payload, trace });
     const composed = runReportAgent({ report: scored, trace });
-    const validated = runValidationAgent({ report: composed, trace });
+    const validated: AnalyzeResponse = {
+      ...runValidationAgent({ report: composed, trace }),
+      requested_mode: payload.mode
+    };
     return NextResponse.json(withTraces(validated, trace.traces));
   }
 }

@@ -15,14 +15,16 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Store,
   Sun,
+  TrendingUp,
   FileCheck2
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnalysisForm } from "@/components/AnalysisForm";
 import { RiskReport } from "@/components/RiskReport";
 import { analyzeContract } from "@/lib/api";
-import type { AnalyzeRequest, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
+import type { AnalysisMode, AnalyzeRequest, AnalyzeResponse, DataSourceStatus } from "@/lib/types";
 
 type AgentStep = {
   name: string;
@@ -153,6 +155,20 @@ const pipelineItems: Array<[string, string, LucideIcon]> = agentSteps.slice(0, 4
   step.role,
   step.Icon
 ]);
+
+const BUSINESS_PERMIT_PIPELINE: Array<[string, string, LucideIcon]> = [
+  ["용도지역", "이 위치에서 가능한 업종을 LURIS 토지이용계획으로 확인합니다.", Database],
+  ["정화구역", "학교알리미·청소년시설 좌표로 반경 200m 영업제한을 검증합니다.", MapPinned],
+  ["동종업종 밀집도", "LOCALDATA 전국 인허가 데이터로 반경 500m 경쟁 상황을 파악합니다.", Search],
+  ["인허가 절차", "식품위생법·학원법·공중위생법 RAG로 필요한 신고·수수료·기간을 안내합니다.", FileSearch]
+];
+
+const COMMERCIAL_USE_PIPELINE: Array<[string, string, LucideIcon]> = [
+  ["부동산 가치", "실거래·건축물대장 기반 매물 가치를 평가합니다.", Database],
+  ["가능 업종", "용도지역+건축물대장+업종 룰로 입주 가능 업종을 추립니다.", Store],
+  ["임대 수익률", "업종별 임대료 통계로 활용 시나리오를 비교합니다.", TrendingUp],
+  ["상권 추세", "소상공인진흥공단 상권 데이터로 신규 진입·폐업 패턴을 봅니다.", Search]
+];
 
 type AnalysisStage = "idle" | "analyzing" | "report";
 
@@ -367,6 +383,7 @@ function AnalyzingPanel({ activeStep, visibleLogCount }: { activeStep: number; v
 export default function Home() {
   const [report, setReport] = useState<AnalyzeResponse | null>(null);
   const [lastPayload, setLastPayload] = useState<AnalyzeRequest | null>(null);
+  const [activeMode, setActiveMode] = useState<AnalysisMode>("real_estate");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<AnalysisStage>("idle");
@@ -384,6 +401,7 @@ export default function Home() {
     setError(null);
     setReport(null);
     setLastPayload(payload);
+    setActiveMode(payload.mode ?? "real_estate");
     setStage("analyzing");
     setActiveStep(0);
     setVisibleLogCount(0);
@@ -440,9 +458,20 @@ export default function Home() {
             </div>
 
             <section className="mt-5" aria-labelledby="pipeline-title">
-              <h2 id="pipeline-title" className="text-sm font-bold text-ink/80">터무니 검토 흐름</h2>
+              <h2 id="pipeline-title" className="text-sm font-bold text-ink/80">
+                {activeMode === "business_permit"
+                  ? "창업 적합성 검토 흐름"
+                  : activeMode === "commercial_use"
+                    ? "상가 활용성 검토 흐름"
+                    : "터무니 검토 흐름"}
+              </h2>
               <div className="mt-3 grid gap-2">
-                {pipelineItems.map(([title, desc, Icon], index) => {
+                {(activeMode === "business_permit"
+                  ? BUSINESS_PERMIT_PIPELINE
+                  : activeMode === "commercial_use"
+                    ? COMMERCIAL_USE_PIPELINE
+                    : pipelineItems
+                ).map(([title, desc, Icon], index) => {
                   const done = stage === "report" || (stage === "analyzing" && index < activeStep);
                   const active = stage === "analyzing" && index === activeStep;
                   const StepIcon = done ? CheckCircle2 : active ? LoaderCircle : Icon;

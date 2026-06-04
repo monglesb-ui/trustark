@@ -199,6 +199,7 @@ export type PlannerOutput = {
 };
 
 export type AnalyzeResponse = {
+  requested_mode?: AnalysisMode;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

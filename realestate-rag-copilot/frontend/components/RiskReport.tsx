@@ -885,6 +885,33 @@ export function RiskReport({
   const [registryConfirmOpen, setRegistryConfirmOpen] = useState(false);
   const [registryLoading, setRegistryLoading] = useState(false);
   const [registryError, setRegistryError] = useState<string | null>(null);
+  const isPlaceholderMode =
+    report.requested_mode === "business_permit" || report.requested_mode === "commercial_use";
+  const placeholderModeLabel =
+    report.requested_mode === "business_permit"
+      ? "창업·영업 적합성"
+      : report.requested_mode === "commercial_use"
+        ? "상가 활용성"
+        : "터무니 검토";
+  const placeholderPreviewItems = report.requested_mode === "business_permit"
+    ? [
+        { title: "용도지역 적합 여부", source: "LURIS 토지이용계획" },
+        { title: "정화구역 200m 검증", source: "학교알리미 · 청소년시설" },
+        { title: "동종업종 밀집도", source: "LOCALDATA 인허가" },
+        { title: "자치구 영업제한", source: "ELIS 조례 RAG" },
+        { title: "인허가 절차·수수료", source: "식품위생법·학원법·공중위생법" },
+        { title: "시설기준 적합성", source: "건축물대장 + 업종 룰" }
+      ]
+    : report.requested_mode === "commercial_use"
+      ? [
+          { title: "이 자리에서 가능한 업종 TOP 5", source: "LOCALDATA + 건축물대장" },
+          { title: "업종별 임대수익률", source: "실거래 + 임대료 통계" },
+          { title: "상가 가치 평가", source: "트러스트 아크 부동산 분석" },
+          { title: "동종업종 밀집·매출 추이", source: "소상공인진흥공단 상권" },
+          { title: "용도지역·인허가 가능성", source: "LURIS + 법령 RAG" },
+          { title: "지원사업 매칭", source: "K-Startup · 정부24" }
+        ]
+      : [];
   const tone =
     report.risk_score >= 81
       ? "border-clay/45 bg-clay/10 text-clay"
@@ -1187,37 +1214,68 @@ export function RiskReport({
         </article>
       ) : (
       <>
-      <section className={`dashboard-panel overflow-hidden border-l-4 p-0 ${tone}`}>
-        <div className="grid gap-5 p-5 sm:grid-cols-[1fr_12rem] sm:p-6">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
-              <Gauge aria-hidden="true" size={18} />
-              터무니지수
-            </div>
-            <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
-            <PlannerInsightPanel planner={report.planner} />
-            <ScoreBreakdownPanel breakdown={report.score_breakdown} />
-            <div className="mt-5 grid gap-2 sm:grid-cols-3">
-              {confidenceItems.map(([label, value, status]) => (
-                <div key={label} className="rounded-md border border-white/70 bg-white/80 p-3 shadow-sm">
-                  <p className="text-[0.7rem] font-black uppercase text-ink/45">{label}</p>
-                  <p className="mt-1 text-sm font-black text-ink">{value}</p>
-                  <p className="mt-1 text-xs font-bold text-ink/55">{status}</p>
-                </div>
-              ))}
-            </div>
+      {isPlaceholderMode ? (
+        <section className="dashboard-panel overflow-hidden border-l-4 border-brass/45 bg-brass/10 p-5 sm:p-6">
+          <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
+            <Gauge aria-hidden="true" size={18} />
+            {placeholderModeLabel}
           </div>
-          <div className="metric-tile grid place-items-center p-5 text-center">
-            <p className="text-sm font-bold text-ink/60">터무니 점수</p>
-            <p className="mt-1 text-5xl font-black tabular-nums text-ink">{report.risk_score}</p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink/10">
-              <div className="h-full rounded-full bg-current" style={{ width: `${report.risk_score}%` }} />
-            </div>
-          </div>
-        </div>
-      </section>
+          <h2 className="mt-3 font-serif text-4xl font-black text-ink">곧 출시 — 입력값 접수 완료</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/75">{report.summary}</p>
 
+          {placeholderPreviewItems.length > 0 ? (
+            <div className="mt-5 rounded-md border border-white/70 bg-white/85 p-4">
+              <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+                이 모드가 활성화되면 보일 검증 카드
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {placeholderPreviewItems.map((item) => (
+                  <div key={item.title} className="rounded-md border border-ink/10 bg-paper px-3 py-2.5">
+                    <p className="text-sm font-bold text-ink/80">{item.title}</p>
+                    <p className="mt-1 text-[0.7rem] font-bold text-ink/50">{item.source}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-[0.7rem] text-ink/55">
+                ※ 발표 직전 LOCALDATA · LURIS · 학교알리미 · ELIS · 법령 RAG 연동으로 활성화됩니다. 지금은 부동산 임차·매수 모드를 사용해 주세요.
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <section className={`dashboard-panel overflow-hidden border-l-4 p-0 ${tone}`}>
+          <div className="grid gap-5 p-5 sm:grid-cols-[1fr_12rem] sm:p-6">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
+                <Gauge aria-hidden="true" size={18} />
+                터무니지수
+              </div>
+              <h2 className="mt-3 font-serif text-5xl font-black text-ink">{report.risk_level}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/72">{report.summary}</p>
+              <PlannerInsightPanel planner={report.planner} />
+              <ScoreBreakdownPanel breakdown={report.score_breakdown} />
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {confidenceItems.map(([label, value, status]) => (
+                  <div key={label} className="rounded-md border border-white/70 bg-white/80 p-3 shadow-sm">
+                    <p className="text-[0.7rem] font-black uppercase text-ink/45">{label}</p>
+                    <p className="mt-1 text-sm font-black text-ink">{value}</p>
+                    <p className="mt-1 text-xs font-bold text-ink/55">{status}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="metric-tile grid place-items-center p-5 text-center">
+              <p className="text-sm font-bold text-ink/60">터무니 점수</p>
+              <p className="mt-1 text-5xl font-black tabular-nums text-ink">{report.risk_score}</p>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ink/10">
+                <div className="h-full rounded-full bg-current" style={{ width: `${report.risk_score}%` }} />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!isPlaceholderMode && (
       <section className="dashboard-panel p-5">
         <SectionTitle number="01" title="핵심 근거 신호" description={`${keySignals.length}개 감지`} />
         <div className="grid gap-3 md:grid-cols-2">
@@ -1237,7 +1295,9 @@ export function RiskReport({
           ))}
         </div>
       </section>
+      )}
 
+      {!isPlaceholderMode && (
       <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <section className="dashboard-panel p-5">
           <SectionTitle number="02" title="실거래 근거" description={marketScopeLabel(report)} />
@@ -1285,7 +1345,10 @@ export function RiskReport({
           <MapView location={report.location} markers={report.markers} />
         </section>
       </div>
+      )}
 
+      {!isPlaceholderMode && (
+      <>
       <section>
         <SectionTitle number="04" title="건축 근거" description={buildingRegister ? "표제부 확인" : "근거 부족"} />
         {buildingRegister ? (
@@ -1399,6 +1462,8 @@ export function RiskReport({
         <SectionTitle number="06" title="법령·체크리스트 근거" description={`${ragEvidence.length || report.evidence.length}개 근거`} />
         <EvidenceList items={ragEvidence.length > 0 ? ragEvidence : report.evidence} />
       </section>
+      </>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-3">
         <section className="dashboard-panel p-5">
