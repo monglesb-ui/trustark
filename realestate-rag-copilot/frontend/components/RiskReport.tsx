@@ -1300,6 +1300,36 @@ export function RiskReport({
 
           <PlannerInsightPanel planner={report.planner} />
 
+          {report.agent_traces && report.agent_traces.length > 0 ? (
+            <div className="mt-5 rounded-md border border-ink/15 bg-white/85 p-4">
+              <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+                실시간 Agent 호출 진단 ({report.agent_traces.length}개)
+              </p>
+              <ul className="mt-2 space-y-1.5 text-[0.72rem] text-ink/75">
+                {report.agent_traces.map((t) => (
+                  <li key={t.id} className="flex items-start gap-2">
+                    <span
+                      className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-black uppercase ${
+                        t.status === "success"
+                          ? "bg-moss/15 text-moss"
+                          : t.status === "failed"
+                            ? "bg-clay/20 text-clay"
+                            : "bg-ink/10 text-ink/60"
+                      }`}
+                    >
+                      {t.status}
+                    </span>
+                    <span className="flex-1">
+                      <span className="font-bold">{t.agent}</span>
+                      <span className="text-ink/45"> · {t.tool}</span>
+                      <span className="block text-ink/55">{t.outputSummary}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {placeholderPreviewItems.length > 0 ? (
             <div className="mt-5 rounded-md border border-white/70 bg-white/85 p-4">
               <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
