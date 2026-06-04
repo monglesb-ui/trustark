@@ -142,10 +142,20 @@ export async function runSchoolZoneAgent({
       inputSummary,
       async () => {
         const { rows, diagnostic } = await loadSchools(officeCode);
-        const districtSchools = rows.filter((r) => (r.ORG_RDNMA ?? "").includes(sigungu));
+        // 매칭: ORG_RDNMA(도로명) + LCTN_SC_NM(시도명)에서 sigungu 텍스트 검색.
+        // 사용자 sigungu가 "양천구"라면 "서울 양천구..." / "서울특별시 양천구..." 모두 매칭.
+        const districtSchools = rows.filter((r) => {
+          const addr = `${r.ORG_RDNMA ?? ""} ${r.LCTN_SC_NM ?? ""} ${r.JU_ORG_NM ?? ""}`;
+          return addr.includes(sigungu);
+        });
         const sameRoadSchools = road
           ? districtSchools.filter((r) => (r.ORG_RDNMA ?? "").includes(road))
           : [];
+        const sampleAddresses = rows
+          .slice(0, 3)
+          .map((r) => r.ORG_RDNMA?.slice(0, 30) ?? "?")
+          .join(" | ");
+        const diagnosticExtra = `${diagnostic} · sample=[${sampleAddresses}]`;
 
         const nearby = (sameRoadSchools.length > 0 ? sameRoadSchools : districtSchools.slice(0, 5)).map((s) => ({
           name: s.SCHUL_NM ?? "(이름 없음)",
@@ -171,7 +181,7 @@ export async function runSchoolZoneAgent({
           impact_level: impact.level,
           impact_message: impact.message,
           source: "NEIS 학교알리미 schoolInfo",
-          diagnostic,
+          diagnostic: diagnosticExtra,
           note:
             sameRoadSchools.length > 0
               ? `같은 도로(${road})에 학교 ${sameRoadSchools.length}건 — 정화구역 영향 확인 필요.`

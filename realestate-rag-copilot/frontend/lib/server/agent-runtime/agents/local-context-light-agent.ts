@@ -18,7 +18,14 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
 function buildQueries(payload: AnalyzeRequest): { web: string; news: string } {
   const address = payload.address ?? "";
   const sigunguMatch = address.match(/([가-힣]+(?:특별자치시|광역시|시|군|구))/);
-  const sigungu = sigunguMatch?.[1] ?? address.slice(0, 20);
+  const sigungu = sigunguMatch?.[1] ?? "";
+  // 도로명 (예: "목동로", "테헤란로", "목동로 25길" → 25길 제외하고 "목동로"만)
+  const roadMatch = address.match(/([가-힣A-Za-z0-9]+로)\s*\d+/);
+  const road = roadMatch?.[1] ?? "";
+  // 동 (법정동/행정동: "신정동", "역삼동" 등)
+  const dongMatch = address.match(/([가-힣]+동)(?:\s|\d|$)/);
+  const dong = dongMatch?.[1] ?? "";
+
   const businessLabel = payload.business_type ? BUSINESS_TYPE_LABELS[payload.business_type] : "";
   const purposeLabel =
     payload.commercial_purpose === "lease_out"
@@ -29,10 +36,13 @@ function buildQueries(payload: AnalyzeRequest): { web: string; news: string } {
           ? "상권"
           : "";
 
-  const topic = businessLabel || purposeLabel || "상권 분위기";
+  const topic = businessLabel || purposeLabel || "상권";
+  // 우선순위: 도로명 > 동 > 자치구. 더 정밀한 위치 키워드일수록 결과가 입력 주소와 직접 연관.
+  const locationToken = road || dong || sigungu;
+  // 뉴스는 자치구 + 토픽 (너무 정밀하면 결과 0건)
   return {
-    web: `${sigungu} ${topic}`.trim(),
-    news: `${sigungu} ${topic} 이슈`.trim()
+    web: `${locationToken} ${topic}`.trim(),
+    news: `${sigungu} ${topic}`.trim()
   };
 }
 

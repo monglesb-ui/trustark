@@ -5,10 +5,12 @@ import type {
   DensityLabel
 } from "@/lib/types";
 import {
+  fetchStoresByUpjong,
   fetchStoresInRadius,
   summarizeCommercialAttempt,
   type CommercialStoreRow
 } from "@/lib/server/commercial-area-api";
+import { extractSeoulSigungu } from "@/lib/server/seoul-districts";
 import type { GeocodeResult } from "@/lib/server/vworld";
 import type { TraceRecorder } from "../trace";
 
@@ -106,7 +108,9 @@ export async function runCompetitionDensityAgent({
           numOfRows: 1000
         });
         let effectiveRadius = radiusMeters;
-        // 2차 fallback: 외곽·주거지역에서 0건이면 1000m로 확장 (최대치)
+        let fallbackNote = "";
+
+        // 2차 fallback: 1000m로 확장
         if (result.ok && result.items.length === 0 && radiusMeters < 1000) {
           const expanded = await fetchStoresInRadius({
             cx: lng,
@@ -118,6 +122,25 @@ export async function runCompetitionDensityAgent({
           if (expanded.ok && expanded.items.length > 0) {
             result = expanded;
             effectiveRadius = 1000;
+            fallbackNote = "(반경 1000m로 자동 확장)";
+          }
+        }
+
+        // 3차 fallback: 자치구 단위 호출 (좌표 API가 외곽 데이터 미보유한 경우)
+        if (result.ok && result.items.length === 0) {
+          const { sigungu, signguCd } = extractSeoulSigungu(payload.address ?? "");
+          if (signguCd) {
+            const byDistrict = await fetchStoresByUpjong({
+              indsLcls: lcls,
+              ctprvnCd: "11",
+              signguCd,
+              numOfRows: 1000
+            });
+            if (byDistrict.ok && byDistrict.items.length > 0) {
+              result = byDistrict;
+              effectiveRadius = 0; // 자치구 전체
+              fallbackNote = `(반경 검색 0건 → ${sigungu ?? "자치구"} 전체로 fallback)`;
+            }
           }
         }
 
@@ -145,8 +168,8 @@ export async function runCompetitionDensityAgent({
           diagnostic: summarizeCommercialAttempt(result.attempt),
           note:
             filtered.length === 0
-              ? "이 반경에서 동종업종 매장이 검색되지 않았습니다. 입력 좌표·업종 필터를 다시 확인해 보세요."
-              : `반경 ${radiusMeters}m 내 ${businessLabel} ${filtered.length}건 운영 중 (반경 전체 매장 ${result.items.length}건 중).`
+              ? `이 ${effectiveRadius === 0 ? "자치구" : `반경 ${effectiveRadius}m`}에서 ${businessLabel} 매장이 검색되지 않았습니다. ${fallbackNote}`
+              : `${effectiveRadius === 0 ? "자치구 전체" : `반경 ${effectiveRadius}m`} 내 ${businessLabel} ${filtered.length}건 운영 중 (전체 매장 ${result.items.length}건 중). ${fallbackNote}`
         };
         return finding;
       },
