@@ -408,7 +408,7 @@ export async function POST(request: Request) {
     // 3) Competition Density — business_permit 모드에서만 의미 있음
     const competitionFinding =
       payload.mode === "business_permit"
-        ? await runCompetitionDensityAgent({ payload, geocode, trace, radiusMeters: 500 })
+        ? await runCompetitionDensityAgent({ payload, geocode, trace, radiusMeters: 200 })
         : null;
 
     // 4) School Zone — business_permit 모드 (학교 정화구역 영향)

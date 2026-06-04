@@ -181,6 +181,16 @@ export async function runCompetitionDensityAgent({
           categoryGroupCode: kakaoCategory,
           sort: "distance"
         });
+        // 카카오 호출 결과를 즉시 trace에 기록 — 401/0건 등 진단 패널에서 확인 가능
+        trace.record(
+          AGENT,
+          "kakaoLocalSearch",
+          `q=${businessLabel} cat=${kakaoCategory ?? "?"} r=${radiusMeters}m`,
+          kakaoResult.ok
+            ? `places=${kakaoResult.places.length} total=${kakaoResult.total} ${kakaoResult.attempt.durationMs}ms`
+            : `실패 HTTP ${kakaoResult.attempt.httpStatus ?? "?"} · ${kakaoResult.attempt.error?.slice(0, 100) ?? "unknown"}`,
+          kakaoResult.ok ? (kakaoResult.places.length > 0 ? "success" : "missing") : "failed"
+        );
 
         // 0차: VWorld Search API (POI + 좌표+반경 직접 검색)를 먼저 시도
         // 카페면 "카페"·"커피" 두 키워드 시도해서 누적
