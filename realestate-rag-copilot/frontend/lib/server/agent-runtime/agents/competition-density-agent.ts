@@ -196,6 +196,7 @@ export async function runCompetitionDensityAgent({
         // 카페면 "카페"·"커피" 두 키워드 시도해서 누적
         const vworldQueries = businessType === "cafe" ? ["카페", "커피전문점"] : [businessLabel];
         const vworldPlacesAll: VworldPlace[] = [];
+        const vworldAttempts: string[] = [];
         for (const q of vworldQueries) {
           const r = await searchVworldPlaces({
             query: q,
@@ -204,11 +205,22 @@ export async function runCompetitionDensityAgent({
             radius: radiusMeters,
             size: 100
           });
+          vworldAttempts.push(
+            `${q}: ${r.ok ? `${r.places.length}건/${r.total}` : `err=${r.attempt.error?.slice(0, 40) ?? "?"}`}`
+          );
           if (r.ok && r.places.length > 0) {
             vworldPlacesAll.push(...r.places);
             vworldDiagnostic += `${q}=${r.places.length}건; `;
           }
         }
+        // VWorld 호출 결과를 진단 패널에 명시
+        trace.record(
+          AGENT,
+          "vworldSearch",
+          `cx=${lng.toFixed(4)} cy=${lat.toFixed(4)} r=${radiusMeters}m`,
+          vworldAttempts.join(" / "),
+          vworldPlacesAll.length > 0 ? "success" : "missing"
+        );
         // 중복 제거 (title + address)
         const vworldDedup = Array.from(
           new Map(vworldPlacesAll.map((p) => [`${p.title}|${p.address}`, p])).values()
@@ -449,8 +461,8 @@ export async function runCompetitionDensityAgent({
             : summarizeCommercialAttempt(result.attempt),
           note:
             filtered.length === 0
-              ? `이 ${effectiveRadius === 0 ? "자치구" : `반경 ${effectiveRadius}m`}에서 ${businessLabel} 매장이 검색되지 않았습니다. ${fallbackNote}`
-              : `${effectiveRadius === 0 ? "자치구 전체" : `반경 ${effectiveRadius}m`} 내 ${businessLabel} ${filtered.length}건 운영 중 (전체 매장 ${result.items.length}건 중). ${fallbackNote}`
+              ? `반경 ${radiusMeters}m에서 ${businessLabel} 매장이 검색되지 않았습니다. ${fallbackNote}`
+              : `${businessLabel} ${filtered.length}건 매칭 (${effectiveRadius === 0 ? "자치구 전체" : `${effectiveRadius}m 검색범위`}, 전체 매장 ${result.items.length}건 중). ${fallbackNote}`
         };
         return finding;
       },
