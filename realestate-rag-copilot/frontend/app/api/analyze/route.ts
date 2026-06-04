@@ -256,7 +256,7 @@ function applyPropertyTypeContext(report: AnalyzeResponse, payload: AnalyzeReque
     ...report,
     request_property_type: payload.property_type,
     risk_score: adjustedScore,
-    risk_level: adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : report.risk_level,
+    risk_level: adjustedScore >= 75 ? "근거 매우 부족" : adjustedScore >= 60 ? "근거 보강 필요" : report.risk_level,
     score_breakdown: propertyTypeBreakdown,
     risk_signals: [
       {

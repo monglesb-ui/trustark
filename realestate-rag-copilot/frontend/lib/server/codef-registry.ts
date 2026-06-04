@@ -458,7 +458,7 @@ export function applyRegistrySummary(report: AnalyzeResponse, registry: Registry
     ...report,
     registry,
     risk_score: adjustedScore,
-    risk_level: adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : report.risk_level,
+    risk_level: adjustedScore >= 75 ? "근거 매우 부족" : adjustedScore >= 60 ? "근거 보강 필요" : report.risk_level,
     summary:
       highFlags.length > 0
         ? `${report.summary} 등기부등본에서 권리 리스크 후보가 확인되어 원문 대조와 전문가 검토가 필요합니다.`

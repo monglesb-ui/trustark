@@ -15,9 +15,9 @@ function assertAllowedTool(tool: string): asserts tool is RiskScoringTool {
 }
 
 function levelFor(score: number) {
-  if (score >= 75) return "위험 · HIGH";
-  if (score >= 60) return "검토 필요";
-  return "현재 표본 기준 낮음";
+  if (score >= 75) return "근거 매우 부족";
+  if (score >= 60) return "근거 보강 필요";
+  return "표본 기준 안전 구간";
 }
 
 function unique(items: string[]) {
@@ -38,7 +38,7 @@ function applyConservativeRiskFloor(report: AnalyzeResponse, payload: AnalyzeReq
 
   if (nonApartment && sparseMarket) {
     floor = Math.max(floor, 60);
-    reasons.push("비아파트 유형은 표본이 적으면 시세 신뢰도가 낮아 최소 검토 필요로 봅니다.");
+    reasons.push("비아파트 유형은 표본이 적으면 시세 신뢰도가 낮아 최소 근거 보강 필요로 봅니다.");
   }
 
   if (!hasSalePrice && payload.contract_type === "jeonse") {

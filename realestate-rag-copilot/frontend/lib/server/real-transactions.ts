@@ -598,9 +598,9 @@ export function applyRentMarketSummary(report: AnalyzeResponse, summary: RentMar
 }
 
 function riskLevel(score: number) {
-  if (score >= 75) return "위험 · HIGH";
-  if (score >= 60) return "검토 필요";
-  return "낮음";
+  if (score >= 75) return "근거 매우 부족";
+  if (score >= 60) return "근거 보강 필요";
+  return "근거 충분";
 }
 
 function scoreFromJeonseRatio(jeonseRatio: number | null, fallbackScore: number) {

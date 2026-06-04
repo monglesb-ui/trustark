@@ -249,7 +249,7 @@ export function applyBuildingRegisterSummary(report: AnalyzeResponse, summary: B
   const propertyTypeLabel = getPropertyTypeLabel(report.request_property_type ?? "other");
   const buildingSummarySentence = `건축물대장상 주용도는 ${purpose}, 사용승인일은 ${summary.useApprovalDate ?? "미확인"}, 위반건축물 여부는 ${violationText}입니다.`;
   const adjustedScore = summary.violationBuilding === true ? Math.max(report.risk_score, 78) : report.risk_score;
-  const adjustedLevel = adjustedScore >= 75 ? "위험 · HIGH" : adjustedScore >= 60 ? "검토 필요" : "낮음";
+  const adjustedLevel = adjustedScore >= 75 ? "근거 매우 부족" : adjustedScore >= 60 ? "근거 보강 필요" : "근거 충분";
 
   return {
     ...report,

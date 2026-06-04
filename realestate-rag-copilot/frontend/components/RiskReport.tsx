@@ -420,7 +420,7 @@ function statusById(report: AnalyzeResponse, id: string) {
 }
 
 function statusText(status?: DataSourceStatus) {
-  if (!status) return "상태 정보 없음";
+  if (!status) return "근거 데이터 없음";
   const label = {
     success: "성공",
     fallback: "대체 표본",
@@ -1287,7 +1287,7 @@ export function RiskReport({
       </div>
 
       <section>
-        <SectionTitle number="04" title="건축 근거" description={buildingRegister ? "표제부 확인" : "미확보"} />
+        <SectionTitle number="04" title="건축 근거" description={buildingRegister ? "표제부 확인" : "근거 부족"} />
         {buildingRegister ? (
           <div className="dashboard-panel p-5">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1334,7 +1334,7 @@ export function RiskReport({
       </section>
 
       <section>
-        <SectionTitle number="05" title="권리 근거" description={registryVerified ? "권리관계 요약" : "미확인"} />
+        <SectionTitle number="05" title="권리 근거" description={registryVerified ? "권리관계 요약" : "근거 부족"} />
         <div className="dashboard-panel p-5">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-2">
