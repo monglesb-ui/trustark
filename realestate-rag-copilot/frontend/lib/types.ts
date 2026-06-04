@@ -264,10 +264,29 @@ export type CommercialUseFindings = {
   // 이후 추가될 항목: possible_business, cap_rate, vacancy_trend
 };
 
+export type NaverContextItem = {
+  title: string;
+  link: string;
+  description: string;
+  pubDate?: string;
+  kind: "web" | "news";
+};
+
+export type NaverContextFinding = {
+  query_web: string;
+  query_news: string;
+  total_web: number;
+  total_news: number;
+  items: NaverContextItem[];
+  source: string;
+  note: string;
+};
+
 export type AnalyzeResponse = {
   requested_mode?: AnalysisMode;
   business_findings?: BusinessPermitFindings;
   commercial_findings?: CommercialUseFindings;
+  local_context?: NaverContextFinding;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

@@ -97,13 +97,29 @@ export async function runCompetitionDensityAgent({
       TOOL,
       inputSummary,
       async () => {
-        const result = await fetchStoresInRadius({
+        // 1차: 입력 radius로 시도
+        let result = await fetchStoresInRadius({
           cx: lng,
           cy: lat,
           radius: radiusMeters,
           indsLcls: lcls,
           numOfRows: 1000
         });
+        let effectiveRadius = radiusMeters;
+        // 2차 fallback: 외곽·주거지역에서 0건이면 1000m로 확장 (최대치)
+        if (result.ok && result.items.length === 0 && radiusMeters < 1000) {
+          const expanded = await fetchStoresInRadius({
+            cx: lng,
+            cy: lat,
+            radius: 1000,
+            indsLcls: lcls,
+            numOfRows: 1000
+          });
+          if (expanded.ok && expanded.items.length > 0) {
+            result = expanded;
+            effectiveRadius = 1000;
+          }
+        }
 
         if (!result.ok) {
           throw new Error(summarizeCommercialAttempt(result.attempt));
@@ -119,7 +135,7 @@ export async function runCompetitionDensityAgent({
 
         const finding: CompetitionDensityFinding = {
           business_type_label: businessLabel,
-          radius_meters: radiusMeters,
+          radius_meters: effectiveRadius,
           total_stores: filtered.length,
           all_stores_in_radius: result.items.length,
           density_label: density.label,

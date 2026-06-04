@@ -190,6 +190,77 @@ function CompetitionDensityCard({
   );
 }
 
+function LocalContextCard({
+  finding
+}: {
+  finding: AnalyzeResponse["local_context"];
+}) {
+  if (!finding) return null;
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+            실데이터 분석 활성 · Naver 검색 재활용
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">동네 분위기 · 최근 이슈</h3>
+        </div>
+        <span className="shrink-0 rounded-md border border-moss/45 bg-moss/10 px-3 py-1.5 text-sm font-black text-moss">
+          {finding.items.length}건
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-md border border-ink/10 bg-paper px-2 py-1 font-bold text-ink/75">
+          웹 검색 {finding.total_web.toLocaleString()}건 · "{finding.query_web}"
+        </span>
+        <span className="rounded-md border border-ink/10 bg-paper px-2 py-1 font-bold text-ink/75">
+          뉴스 {finding.total_news.toLocaleString()}건 · "{finding.query_news}"
+        </span>
+      </div>
+
+      <ul className="mt-4 grid gap-2">
+        {finding.items.map((item, index) => (
+          <li
+            key={`${item.link}-${index}`}
+            className="rounded-md border border-ink/10 bg-white p-3"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-bold text-ink hover:underline"
+              >
+                {item.title}
+              </a>
+              <span
+                className={`shrink-0 rounded-md border px-2 py-0.5 text-[0.65rem] font-black uppercase ${
+                  item.kind === "news"
+                    ? "border-brass/40 bg-brass/10 text-brass"
+                    : "border-moss/40 bg-moss/10 text-moss"
+                }`}
+              >
+                {item.kind === "news" ? "뉴스" : "웹"}
+              </span>
+            </div>
+            {item.description ? (
+              <p className="mt-1 text-xs leading-5 text-ink/65 line-clamp-2">{item.description}</p>
+            ) : null}
+            {item.pubDate ? (
+              <p className="mt-1 text-[0.65rem] font-bold text-ink/45">{item.pubDate}</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: {finding.source}. {finding.note}
+      </p>
+    </section>
+  );
+}
+
 function BuildingRegisterLightCard({
   view
 }: {
@@ -1564,6 +1635,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.building_register ? (
         <BuildingRegisterLightCard view={report.building_register} />
+      ) : null}
+
+      {isPlaceholderMode && report.local_context ? (
+        <LocalContextCard finding={report.local_context} />
       ) : null}
 
       {!isPlaceholderMode ? (

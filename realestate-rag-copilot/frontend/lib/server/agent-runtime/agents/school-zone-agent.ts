@@ -98,14 +98,16 @@ function impactFor(businessType: BusinessType, schoolsInDistrict: number): { lev
 async function loadSchools(officeCode: string): Promise<{ rows: SchoolInfoRow[]; diagnostic: string }> {
   const now = Date.now();
   const cached = schoolCache.get(officeCode);
-  if (cached && now - cached.at < CACHE_TTL) {
+  if (cached && now - cached.at < CACHE_TTL && cached.rows.length > 0) {
     return { rows: cached.rows, diagnostic: `cache hit (${cached.rows.length})` };
   }
-  const result = await fetchSchools({ officeCode, maxPages: 3 });
+  // pSize 1000으로 5페이지까지 = 5000건. 서울 전체 학교 약 2400건 커버.
+  const result = await fetchSchools({ officeCode, maxPages: 5 });
+  const diagnostic = `${summarizeNeisAttempt(result.attempt)} · loaded=${result.rows.length}`;
   if (result.ok && result.rows.length > 0) {
     schoolCache.set(officeCode, { rows: result.rows, at: now });
   }
-  return { rows: result.rows, diagnostic: summarizeNeisAttempt(result.attempt) };
+  return { rows: result.rows, diagnostic };
 }
 
 export async function runSchoolZoneAgent({

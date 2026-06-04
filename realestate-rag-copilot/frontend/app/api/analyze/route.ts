@@ -27,6 +27,7 @@ import { runCompetitionDensityAgent } from "@/lib/server/agent-runtime/agents/co
 import { runSchoolZoneAgent } from "@/lib/server/agent-runtime/agents/school-zone-agent";
 import { runPropertyValueAgent } from "@/lib/server/agent-runtime/agents/property-value-agent";
 import { runBuildingRegisterLightAgent } from "@/lib/server/agent-runtime/agents/building-register-light-agent";
+import { runLocalContextLightAgent } from "@/lib/server/agent-runtime/agents/local-context-light-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -422,6 +423,9 @@ export async function POST(request: Request) {
     // 6) Building Register — 창업·상가 양쪽에서 사용 (부동산 BuildingRegister 재활용)
     const buildingRegisterView = await runBuildingRegisterLightAgent({ payload, geocode, trace });
 
+    // 7) Local Context — Naver 웹+뉴스 검색 (창업·상가 모두). 동네 분위기·이슈 보강
+    const localContextFinding = await runLocalContextLightAgent({ payload, trace });
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -466,6 +470,7 @@ export async function POST(request: Request) {
         ? { property_value: propertyValueFinding }
         : undefined,
       building_register: buildingRegisterView ?? base.building_register,
+      local_context: localContextFinding ?? undefined,
       location: geocode.result
         ? {
             lat: geocode.result.lat,
