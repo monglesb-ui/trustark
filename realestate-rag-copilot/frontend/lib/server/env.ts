@@ -54,7 +54,20 @@ export const serverEnv = {
   codefRegistryIssueType: process.env.CODEF_REGISTRY_ISSUE_TYPE ?? "1",
   codefRegistryRealtyType: process.env.CODEF_REGISTRY_REALTY_TYPE,
 
-  realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY
+  realEstateProviderApiKey: process.env.REAL_ESTATE_PROVIDER_API_KEY,
+
+  // 서울 열린데이터 (data.seoul.go.kr) — 일반음식점 인허가 등
+  seoulRestaurantApiKey: process.env.SEOUL_RESTAURANT_API_KEY,
+
+  // 학교알리미 / NEIS (open.neis.go.kr) — 학교 좌표·정화구역 검증
+  neisApiKey: process.env.NEIS_API_KEY,
+
+  // 자치법규(ELIS) / 법제처 — 조례·규칙 본문
+  // NOTE: 현재 NEXT_PUBLIC_ 접두어로 등록돼 있어 브라우저 노출 위험. 가능하면 LAW_API_KEY로 이전 권장.
+  lawApiKey:
+    process.env.LAW_API_KEY ??
+    process.env.ELIS_API_KEY ??
+    process.env.NEXT_PUBLIC_LAW_API_URL
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {
