@@ -63,6 +63,14 @@ export async function GET() {
     numOfRows: 5
   });
 
+  // 4b) 양천구 목동 좌표로 동일 API 재호출 (사용자 입력 케이스 재현, numOfRows=1000)
+  const commercialMokdong = await fetchStoresInRadius({
+    cx: 126.8748,
+    cy: 37.5279,
+    radius: 500,
+    numOfRows: 1000
+  });
+
   // 5) 토지이용계획 LURIS - 샘플 PNU (강남구 역삼동 법정동코드 기반 임의 필지)
   // PNU 19자리 = 법정동코드(10) + 대지구분(1) + 본번(4) + 부번(4)
   const landUseResult = await fetchLandUseByPnu({
@@ -118,6 +126,22 @@ export async function GET() {
         total: commercialResult.totalCount,
         sample_count: commercialResult.items.length,
         sample: commercialResult.items.slice(0, 3).map((r) => ({
+          name: r.bizesNm,
+          category: r.indsSclsNm ?? r.indsMclsNm ?? r.indsLclsNm,
+          address: r.rdnmAdr ?? r.lnoAdr,
+          coords: r.lat && r.lon ? `${r.lat}, ${r.lon}` : null
+        }))
+      },
+      commercial_stores_mokdong: {
+        ok: commercialMokdong.ok,
+        attempt: summarizeCommercialAttempt(commercialMokdong.attempt),
+        total: commercialMokdong.totalCount,
+        sample_count: commercialMokdong.items.length,
+        cafes_filtered: commercialMokdong.items.filter((r) => {
+          const text = `${r.indsSclsNm ?? ""} ${r.indsMclsNm ?? ""} ${r.bizesNm ?? ""}`;
+          return /(카페|커피|디저트|베이커리|제과|coffee)/i.test(text);
+        }).length,
+        sample: commercialMokdong.items.slice(0, 3).map((r) => ({
           name: r.bizesNm,
           category: r.indsSclsNm ?? r.indsMclsNm ?? r.indsLclsNm,
           address: r.rdnmAdr ?? r.lnoAdr,
