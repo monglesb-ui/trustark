@@ -304,12 +304,25 @@ export type LegalRagFinding = {
   index_size?: number;
 };
 
+export type DecisionVerdict = "go" | "conditional" | "stop";
+
+export type DecisionFinding = {
+  verdict: DecisionVerdict;
+  headline: string;             // 한 줄 결론
+  reasons: string[];            // 핵심 근거 3개
+  next_actions: string[];       // 즉시 할 일 3개
+  red_flags: string[];          // 0~2개 빨간 신호
+  data_quality: string;         // 데이터 신뢰도 1줄 평가
+  source: string;
+};
+
 export type AnalyzeResponse = {
   requested_mode?: AnalysisMode;
   business_findings?: BusinessPermitFindings;
   commercial_findings?: CommercialUseFindings;
   local_context?: NaverContextFinding;
   legal_rag?: LegalRagFinding;
+  decision?: DecisionFinding;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

@@ -4,6 +4,7 @@ import { getPropertyTypeGroup, getPropertyTypeLabel } from "@/lib/property-types
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
+  BusinessPermitFindings,
   DataSourceStatus,
   ExecutionPlanEntry,
   MapMarker,
@@ -29,6 +30,7 @@ import { runPropertyValueAgent } from "@/lib/server/agent-runtime/agents/propert
 import { runBuildingRegisterLightAgent } from "@/lib/server/agent-runtime/agents/building-register-light-agent";
 import { runLocalContextLightAgent } from "@/lib/server/agent-runtime/agents/local-context-light-agent";
 import { runLegalRagAgent } from "@/lib/server/agent-runtime/agents/legal-rag-agent";
+import { runDecisionAgent } from "@/lib/server/agent-runtime/agents/decision-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -430,6 +432,26 @@ export async function POST(request: Request) {
     // 8) Legal RAG — Agentic RAG (도메인 라우팅 + LLM 쿼리 리라이팅 + top-k 임베딩 검색)
     const legalRagFinding = await runLegalRagAgent({ payload, trace });
 
+    // 9) Decision Synthesis — 모든 Agent 결과를 LLM이 종합해 actionable 답변 생성 (최상단 카드)
+    const businessFindingsForDecision: BusinessPermitFindings | undefined =
+      competitionFinding || schoolZoneFinding
+        ? {
+            ...(competitionFinding ? { competition: competitionFinding } : {}),
+            ...(schoolZoneFinding ? { school_zone: schoolZoneFinding } : {})
+          }
+        : undefined;
+    const decisionFinding = await runDecisionAgent({
+      payload,
+      report: {
+        building_register: buildingRegisterView ?? base.building_register,
+        business_findings: businessFindingsForDecision,
+        commercial_findings: propertyValueFinding ? { property_value: propertyValueFinding } : undefined,
+        local_context: localContextFinding ?? undefined,
+        legal_rag: legalRagFinding ?? undefined
+      },
+      trace
+    });
+
     // base의 data_statuses를 실제 결과로 덮어쓰기
     const enrichedStatuses: DataSourceStatus[] = (base.data_statuses ?? []).map((s) => {
       if (s.id === "geocoding") {
@@ -476,6 +498,7 @@ export async function POST(request: Request) {
       building_register: buildingRegisterView ?? base.building_register,
       local_context: localContextFinding ?? undefined,
       legal_rag: legalRagFinding ?? undefined,
+      decision: decisionFinding ?? undefined,
       location: geocode.result
         ? {
             lat: geocode.result.lat,

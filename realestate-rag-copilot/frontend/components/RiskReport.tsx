@@ -190,6 +190,106 @@ function CompetitionDensityCard({
   );
 }
 
+function DecisionCard({
+  finding
+}: {
+  finding: AnalyzeResponse["decision"];
+}) {
+  if (!finding) return null;
+  const verdictConfig = {
+    go: {
+      label: "GO",
+      title: "진행 권장",
+      tone: "border-moss/55 bg-moss/15",
+      pill: "bg-moss text-cream"
+    },
+    conditional: {
+      label: "CONDITIONAL",
+      title: "조건부 검토",
+      tone: "border-brass/55 bg-brass/15",
+      pill: "bg-brass text-cream"
+    },
+    stop: {
+      label: "STOP",
+      title: "재고 권장",
+      tone: "border-clay/55 bg-clay/15",
+      pill: "bg-clay text-cream"
+    }
+  }[finding.verdict];
+
+  return (
+    <section className={`dashboard-panel mt-2 overflow-hidden border-l-4 p-5 sm:p-6 ${verdictConfig.tone}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-ink/70">
+            ⚡ 터무니 종합 판단 · LLM 의사결정
+          </p>
+          <h2 className="mt-2 font-serif text-3xl sm:text-4xl font-black text-ink">{finding.headline}</h2>
+        </div>
+        <span
+          className={`shrink-0 rounded-md px-4 py-2 text-base font-black tracking-[0.1em] ${verdictConfig.pill}`}
+        >
+          {verdictConfig.label}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {finding.reasons.length > 0 ? (
+          <div className="rounded-md border border-ink/15 bg-white/85 p-4">
+            <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+              📊 핵심 근거
+            </p>
+            <ul className="mt-2 grid gap-1.5 text-sm leading-6 text-ink/80">
+              {finding.reasons.map((r, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="font-black text-moss">{i + 1}.</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {finding.next_actions.length > 0 ? (
+          <div className="rounded-md border border-ink/15 bg-white/85 p-4">
+            <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+              🎯 즉시 할 일
+            </p>
+            <ul className="mt-2 grid gap-1.5 text-sm leading-6 text-ink/80">
+              {finding.next_actions.map((a, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="font-black text-brass">→</span>
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+
+      {finding.red_flags.length > 0 ? (
+        <div className="mt-4 rounded-md border border-clay/40 bg-clay/10 p-4">
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-clay">
+            🚩 빨간 신호
+          </p>
+          <ul className="mt-2 grid gap-1.5 text-sm leading-6 text-ink/85">
+            {finding.red_flags.map((f, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="font-black text-clay">⚠</span>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="mt-4 text-[0.7rem] text-ink/55">
+        ※ {finding.source}. 데이터 신뢰도: {finding.data_quality}
+      </p>
+    </section>
+  );
+}
+
 function LegalRagCard({
   finding
 }: {
@@ -1649,6 +1749,10 @@ export function RiskReport({
         </article>
       ) : (
       <>
+      {isPlaceholderMode && report.decision ? (
+        <DecisionCard finding={report.decision} />
+      ) : null}
+
       {isPlaceholderMode ? (
         <section className="dashboard-panel overflow-hidden border-l-4 border-brass/45 bg-brass/10 p-5 sm:p-6">
           <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
