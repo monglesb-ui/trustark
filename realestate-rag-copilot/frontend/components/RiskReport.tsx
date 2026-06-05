@@ -510,6 +510,96 @@ function BuildingRegisterLightCard({
   );
 }
 
+function TradeAreaCard({
+  finding
+}: {
+  finding: NonNullable<AnalyzeResponse["business_findings"]>["trade_area"];
+}) {
+  if (!finding) return null;
+  const fmtNum = (n?: number) => (n == null ? "—" : Math.round(n).toLocaleString("ko-KR"));
+  const fmtKRW = (n?: number) => {
+    if (n == null || n === 0) return "—";
+    if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
+    if (n >= 10_000) return `${(n / 10_000).toFixed(0)}만`;
+    return n.toLocaleString("ko-KR");
+  };
+  const fmtPct = (n?: number) => (n == null ? "—" : `${n.toFixed(1)}%`);
+
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-brass/55 bg-brass/5 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-brass">
+            서울 상권분석 · 핵심 데이터
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            {finding.district} 상권 진단 ({finding.quarter} 분기)
+          </h3>
+        </div>
+        <span className="shrink-0 rounded-md border border-brass/45 bg-brass/10 px-3 py-1.5 text-sm font-black text-brass">
+          {finding.sample_size}개 상권
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">평일 유동인구</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {fmtNum(finding.metrics.avg_weekday_floating)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">명/일</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">주말 유동인구</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {fmtNum(finding.metrics.avg_weekend_floating)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">명/일</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">월 추정매출</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {fmtKRW(finding.metrics.avg_monthly_sales)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">원/월</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">점포 수 (상권 평균)</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+            {fmtNum(finding.metrics.total_stores)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-ink/55">개</p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">신규 개업률</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-moss">
+            {fmtPct(finding.metrics.new_stores)}
+          </p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-4">
+          <p className="text-[0.7rem] font-black uppercase text-ink/45">폐업률</p>
+          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-clay">
+            {fmtPct(finding.metrics.closed_stores)}
+          </p>
+        </div>
+      </div>
+
+      <ul className="mt-4 grid gap-1.5 rounded-md border border-ink/10 bg-white/85 p-4 text-sm leading-6 text-ink/80">
+        {finding.insights.map((ins, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="font-black text-brass">•</span>
+            <span>{ins}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: {finding.source} · {finding.diagnostic}
+      </p>
+    </section>
+  );
+}
+
 function PropertyValueCard({
   finding
 }: {
@@ -1821,6 +1911,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.business_findings?.school_zone ? (
         <SchoolZoneCard finding={report.business_findings.school_zone} />
+      ) : null}
+
+      {isPlaceholderMode && report.business_findings?.trade_area ? (
+        <TradeAreaCard finding={report.business_findings.trade_area} />
       ) : null}
 
       {isPlaceholderMode && report.commercial_findings?.property_value ? (

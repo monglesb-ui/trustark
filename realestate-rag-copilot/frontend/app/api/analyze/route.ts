@@ -31,6 +31,7 @@ import { runBuildingRegisterLightAgent } from "@/lib/server/agent-runtime/agents
 import { runLocalContextLightAgent } from "@/lib/server/agent-runtime/agents/local-context-light-agent";
 import { runLegalRagAgent } from "@/lib/server/agent-runtime/agents/legal-rag-agent";
 import { runDecisionAgent } from "@/lib/server/agent-runtime/agents/decision-agent";
+import { runTradeAreaAgent } from "@/lib/server/agent-runtime/agents/trade-area-agent";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -417,6 +418,9 @@ export async function POST(request: Request) {
         ? await runSchoolZoneAgent({ payload, trace })
         : null;
 
+    // 4b) Trade Area — 서울 상권분석 4종 종합 (유동인구/매출/신규폐업/점포)
+    const tradeAreaFinding = await runTradeAreaAgent({ payload, trace });
+
     // 5) Property Value — commercial_use 모드 (상가 시세, 부동산 Market Data Agent 재활용)
     const propertyValueFinding =
       payload.mode === "commercial_use"
@@ -486,10 +490,11 @@ export async function POST(request: Request) {
       evidence: enrichedEvidence,
       planner: planner ?? undefined,
       business_findings:
-        competitionFinding || schoolZoneFinding
+        competitionFinding || schoolZoneFinding || tradeAreaFinding
           ? {
               ...(competitionFinding ? { competition: competitionFinding } : {}),
-              ...(schoolZoneFinding ? { school_zone: schoolZoneFinding } : {})
+              ...(schoolZoneFinding ? { school_zone: schoolZoneFinding } : {}),
+              ...(tradeAreaFinding ? { trade_area: tradeAreaFinding } : {})
             }
           : undefined,
       commercial_findings: propertyValueFinding

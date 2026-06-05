@@ -242,6 +242,7 @@ export type SchoolZoneFinding = {
 export type BusinessPermitFindings = {
   competition?: CompetitionDensityFinding;
   school_zone?: SchoolZoneFinding;
+  trade_area?: TradeAreaFinding;
   // 이후 추가될 항목: zoning, license_requirement, building_suitability, youth_protection
 };
 
@@ -302,6 +303,36 @@ export type LegalRagFinding = {
   source: string;
   note: string;
   index_size?: number;
+};
+
+export type TradeAreaFinding = {
+  district: string;              // 자치구 (예: "양천구")
+  signgu_cd: string;             // 시군구 코드
+  sample_size: number;           // 분석에 사용된 상권/행정동 수
+  quarter: string;               // 기준 분기 (예: "20243")
+  /** 핵심 지표 (자치구 평균 또는 합산) */
+  metrics: {
+    /** 평일 평균 유동인구 (일/명) */
+    avg_weekday_floating?: number;
+    /** 주말 평균 유동인구 */
+    avg_weekend_floating?: number;
+    /** 추정 매출 (월/원) */
+    avg_monthly_sales?: number;
+    /** 신규개업 점포 수 */
+    new_stores?: number;
+    /** 폐업 점포 수 */
+    closed_stores?: number;
+    /** 점포 총 수 */
+    total_stores?: number;
+    /** 20대 거주인구 비율 (%) */
+    age_20s_ratio?: number;
+    /** 30대 거주인구 비율 (%) */
+    age_30s_ratio?: number;
+  };
+  /** 추가 인사이트 텍스트 */
+  insights: string[];
+  source: string;
+  diagnostic: string;
 };
 
 export type DecisionVerdict = "go" | "conditional" | "stop";
