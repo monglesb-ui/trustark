@@ -631,58 +631,72 @@ function TradeAreaCard({
         </span>
       </div>
 
-      {/* 유동인구·매출 — 핵심 메트릭 3분할 */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">평일 유동인구</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
-            {fmtNum(finding.metrics.avg_weekday_floating)}
-          </p>
-          <p className="mt-1 text-xs font-bold text-ink/55">명/일</p>
-        </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">주말 유동인구</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
-            {fmtNum(finding.metrics.avg_weekend_floating)}
-          </p>
-          <p className="mt-1 text-xs font-bold text-ink/55">명/일</p>
-        </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">월 추정매출</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
-            {fmtKRW(finding.metrics.avg_monthly_sales)}
-          </p>
-          <p className="mt-1 text-xs font-bold text-ink/55">원/월</p>
-        </div>
-      </div>
+      {/* 유동인구·매출 — 채워진 메트릭만 표시 */}
+      {(() => {
+        const cells: Array<[string, string, string]> = [];
+        if (finding.metrics.avg_weekday_floating) {
+          cells.push(["평일 유동인구", fmtNum(finding.metrics.avg_weekday_floating), "명/일"]);
+        }
+        if (finding.metrics.avg_weekend_floating) {
+          cells.push(["주말 유동인구", fmtNum(finding.metrics.avg_weekend_floating), "명/일"]);
+        }
+        if (finding.metrics.avg_monthly_sales) {
+          cells.push(["월 추정매출", fmtKRW(finding.metrics.avg_monthly_sales), "원/월"]);
+        }
+        if (cells.length === 0) return null;
+        const cols = cells.length === 1 ? "sm:grid-cols-1" : cells.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3";
+        return (
+          <div className={`mt-5 grid gap-3 ${cols}`}>
+            {cells.map(([label, value, suffix]) => (
+              <div key={label} className="rounded-md border border-ink/10 bg-paper p-4">
+                <p className="text-[0.7rem] font-black uppercase text-ink/45">{label}</p>
+                <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">{value}</p>
+                <p className="mt-1 text-xs font-bold text-ink/55">{suffix}</p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
-      {/* 점포 현황 — 4분할 */}
-      <div className="mt-3 grid gap-3 sm:grid-cols-4">
-        <div className="rounded-md border border-ink/10 bg-paper p-3">
-          <p className="text-[0.65rem] font-black uppercase text-ink/45">총 점포</p>
-          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-ink">
-            {fmtNum(finding.metrics.total_stores)}
-          </p>
-        </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-3">
-          <p className="text-[0.65rem] font-black uppercase text-ink/45">프랜차이즈</p>
-          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-ink">
-            {fmtNum(finding.metrics.franchise_stores)}
-          </p>
-        </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-3">
-          <p className="text-[0.65rem] font-black uppercase text-ink/45">신규</p>
-          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-moss">
-            {fmtPct(finding.metrics.new_stores)}
-          </p>
-        </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-3">
-          <p className="text-[0.65rem] font-black uppercase text-ink/45">폐업</p>
-          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-clay">
-            {fmtPct(finding.metrics.closed_stores)}
-          </p>
-        </div>
-      </div>
+      {/* 점포 현황 — 채워진 항목만 */}
+      {(() => {
+        const cells: Array<{ label: string; value: string; tone?: string }> = [];
+        if (finding.metrics.total_stores) {
+          cells.push({ label: "총 점포 (상권 평균)", value: fmtNum(finding.metrics.total_stores) });
+        }
+        if (finding.metrics.franchise_stores) {
+          cells.push({ label: "프랜차이즈", value: fmtNum(finding.metrics.franchise_stores) });
+        }
+        if (finding.metrics.new_stores) {
+          cells.push({ label: "신규 개업률", value: fmtPct(finding.metrics.new_stores), tone: "text-moss" });
+        }
+        if (finding.metrics.closed_stores) {
+          cells.push({ label: "폐업률", value: fmtPct(finding.metrics.closed_stores), tone: "text-clay" });
+        }
+        if (cells.length === 0) return null;
+        const cols =
+          cells.length === 1
+            ? "sm:grid-cols-1"
+            : cells.length === 2
+              ? "sm:grid-cols-2"
+              : cells.length === 3
+                ? "sm:grid-cols-3"
+                : "sm:grid-cols-4";
+        return (
+          <div className={`mt-3 grid gap-3 ${cols}`}>
+            {cells.map((c) => (
+              <div key={c.label} className="rounded-md border border-ink/10 bg-paper p-3">
+                <p className="text-[0.65rem] font-black uppercase text-ink/45">{c.label}</p>
+                <p
+                  className={`mt-1 font-serif text-2xl font-black tabular-nums ${c.tone ?? "text-ink"}`}
+                >
+                  {c.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* 인구 구조 — 2분할 (연령대 + 성별) */}
       {(finding.metrics.age_20s_ratio ||
@@ -1997,89 +2011,26 @@ export function RiskReport({
         </article>
       ) : (
       <>
+      {/* ─────────────────────────────────────────────────────────────
+          창업·상가 모드 카드 위계 (3순위 재정렬 — 사용자 도움 기준)
+          1. Decision Card        — 결론 + 즉시 할 일 (LLM 종합)
+          2. 검토 위치 지도         — 입지 시각화
+          3. 상권 진단             — 시장 데이터 (유동·매출·인구)
+          4. 동종업종 밀집도       — 200m 카페 N건 (입력 있을 때만)
+          5. 건축물대장           — 영업 가능 용도
+          6. 상가 시세            — commercial_use 모드
+          7. 학교 정화구역        — 있는 경우만
+          8. 법령·조례 RAG       — 근거 자료
+          9. 동네 분위기 (Naver)  — 보조 정보
+         10. 터무니 플래너 + Agent 진단 — 개발자 보조 (가장 하단)
+         ───────────────────────────────────────────────────────────── */}
+
+      {/* 1. Decision Card (결론) */}
       {isPlaceholderMode && report.decision ? (
         <DecisionCard finding={report.decision} />
       ) : null}
 
-      {isPlaceholderMode ? (
-        <section className="dashboard-panel overflow-hidden border-l-4 border-brass/45 bg-brass/10 p-5 sm:p-6">
-          <div className="flex items-center gap-2 text-sm font-bold text-ink/65">
-            <Gauge aria-hidden="true" size={18} />
-            {placeholderModeLabel}
-          </div>
-          <h2 className="mt-3 font-serif text-4xl font-black text-ink">곧 출시 — 입력값 접수 완료</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink/75">{report.summary}</p>
-
-          <PlannerInsightPanel planner={report.planner} />
-
-          {report.agent_traces && report.agent_traces.length > 0 ? (
-            <div className="mt-5 rounded-md border border-ink/15 bg-white/85 p-4">
-              <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
-                실시간 Agent 호출 진단 ({report.agent_traces.length}개)
-              </p>
-              <ul className="mt-2 space-y-1.5 text-[0.72rem] text-ink/75">
-                {report.agent_traces.map((t) => (
-                  <li key={t.id} className="flex items-start gap-2">
-                    <span
-                      className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-black uppercase ${
-                        t.status === "success"
-                          ? "bg-moss/15 text-moss"
-                          : t.status === "failed"
-                            ? "bg-clay/20 text-clay"
-                            : "bg-ink/10 text-ink/60"
-                      }`}
-                    >
-                      {t.status}
-                    </span>
-                    <span className="flex-1">
-                      <span className="font-bold">{t.agent}</span>
-                      <span className="text-ink/45"> · {t.tool}</span>
-                      <span className="block text-ink/55">{t.outputSummary}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {placeholderPreviewItems.length > 0 ? (
-            <div className="mt-5 rounded-md border border-white/70 bg-white/85 p-4">
-              <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
-                이 모드가 활성화되면 보일 검증 카드
-              </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {placeholderPreviewItems.map((item) => (
-                  <div key={item.title} className="rounded-md border border-ink/10 bg-paper px-3 py-2.5">
-                    <p className="text-sm font-bold text-ink/80">{item.title}</p>
-                    <p className="mt-1 text-[0.7rem] font-bold text-ink/50">{item.source}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-[0.7rem] text-ink/55">
-                ※ 발표 직전 LOCALDATA · LURIS · 학교알리미 · ELIS · 법령 RAG 연동으로 활성화됩니다. 지금은 부동산 임차·매수 모드를 사용해 주세요.
-              </p>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {isPlaceholderMode &&
-      report.business_findings?.competition &&
-      (report.business_findings.competition.total_stores > 0 ||
-        report.business_findings.competition.all_stores_in_radius > 0) ? (
-        <CompetitionDensityCard finding={report.business_findings.competition} />
-      ) : null}
-
-      {isPlaceholderMode &&
-      report.business_findings?.school_zone &&
-      report.business_findings.school_zone.total_schools_in_district > 0 ? (
-        <SchoolZoneCard finding={report.business_findings.school_zone} />
-      ) : null}
-
-      {isPlaceholderMode && report.business_findings?.trade_area ? (
-        <TradeAreaCard finding={report.business_findings.trade_area} />
-      ) : null}
-
+      {/* 2. 검토 위치 지도 */}
       {isPlaceholderMode && report.location && (report.location.lat || report.location.lng) ? (
         <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2102,23 +2053,86 @@ export function RiskReport({
         </section>
       ) : null}
 
-      {isPlaceholderMode && report.commercial_findings?.property_value ? (
-        <PropertyValueCard finding={report.commercial_findings.property_value} />
+      {/* 3. 상권 진단 (Trade Area) */}
+      {isPlaceholderMode && report.business_findings?.trade_area ? (
+        <TradeAreaCard finding={report.business_findings.trade_area} />
       ) : null}
 
+      {/* 4. 동종업종 밀집도 (Competition Density) — 데이터 있을 때만 */}
+      {isPlaceholderMode &&
+      report.business_findings?.competition &&
+      (report.business_findings.competition.total_stores > 0 ||
+        report.business_findings.competition.all_stores_in_radius > 0) ? (
+        <CompetitionDensityCard finding={report.business_findings.competition} />
+      ) : null}
+
+      {/* 5. 건축물대장 */}
       {isPlaceholderMode && report.building_register ? (
         <BuildingRegisterLightCard view={report.building_register} />
       ) : null}
 
-      {isPlaceholderMode && report.local_context ? (
-        <LocalContextCard finding={report.local_context} />
+      {/* 6. 상가 시세 (commercial_use only) */}
+      {isPlaceholderMode && report.commercial_findings?.property_value ? (
+        <PropertyValueCard finding={report.commercial_findings.property_value} />
       ) : null}
 
+      {/* 7. 학교 정화구역 — 데이터 있을 때만 */}
+      {isPlaceholderMode &&
+      report.business_findings?.school_zone &&
+      report.business_findings.school_zone.total_schools_in_district > 0 ? (
+        <SchoolZoneCard finding={report.business_findings.school_zone} />
+      ) : null}
+
+      {/* 8. 법령·조례·사례 RAG */}
       {isPlaceholderMode && report.legal_rag ? (
         <LegalRagCard finding={report.legal_rag} />
       ) : null}
 
-      {/* 소상공인365 iframe 위젯 카드는 사용자 결정에 따라 제거 (외부 위젯 가치 < 노이즈) */}
+      {/* 9. 동네 분위기 (Naver/X) */}
+      {isPlaceholderMode && report.local_context ? (
+        <LocalContextCard finding={report.local_context} />
+      ) : null}
+
+      {/* 10. 플래너 + Agent 진단 (개발자 보조, 하단) */}
+      {isPlaceholderMode && (report.planner || (report.agent_traces && report.agent_traces.length > 0)) ? (
+        <details className="dashboard-panel mt-5 overflow-hidden border-l-4 border-ink/20 p-5 sm:p-6">
+          <summary className="cursor-pointer text-[0.7rem] font-black uppercase tracking-[0.16em] text-ink/55">
+            🔧 Agent 호출 진단 · 플래너 의도 분석 (개발자 모드)
+          </summary>
+          <div className="mt-4">
+            <PlannerInsightPanel planner={report.planner} />
+            {report.agent_traces && report.agent_traces.length > 0 ? (
+              <div className="mt-5 rounded-md border border-ink/15 bg-white/85 p-4">
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.12em] text-ink/55">
+                  실시간 Agent 호출 진단 ({report.agent_traces.length}개)
+                </p>
+                <ul className="mt-2 space-y-1.5 text-[0.72rem] text-ink/75">
+                  {report.agent_traces.map((t) => (
+                    <li key={t.id} className="flex items-start gap-2">
+                      <span
+                        className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[0.6rem] font-black uppercase ${
+                          t.status === "success"
+                            ? "bg-moss/15 text-moss"
+                            : t.status === "failed"
+                              ? "bg-clay/20 text-clay"
+                              : "bg-ink/10 text-ink/60"
+                        }`}
+                      >
+                        {t.status}
+                      </span>
+                      <span className="flex-1">
+                        <span className="font-bold">{t.agent}</span>
+                        <span className="text-ink/45"> · {t.tool}</span>
+                        <span className="block text-ink/55">{t.outputSummary}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </details>
+      ) : null}
 
       {!isPlaceholderMode ? (
         <section className={`dashboard-panel overflow-hidden border-l-4 p-0 ${tone}`}>
