@@ -1917,6 +1917,28 @@ export function RiskReport({
         <TradeAreaCard finding={report.business_findings.trade_area} />
       ) : null}
 
+      {isPlaceholderMode && report.location && (report.location.lat || report.location.lng) ? (
+        <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-moss/40 p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-moss">
+                실데이터 분석 활성 · 위치 매핑
+              </p>
+              <h3 className="mt-2 font-serif text-2xl font-black text-ink">검토 위치 지도</h3>
+            </div>
+            <span className="shrink-0 rounded-md border border-moss/45 bg-moss/10 px-3 py-1.5 text-sm font-black text-moss">
+              {report.markers?.length ?? 1}개 마커
+            </span>
+          </div>
+          <div className="mt-4 overflow-hidden rounded-md border border-ink/10">
+            <MapView location={report.location} markers={report.markers ?? []} />
+          </div>
+          <p className="mt-3 text-[0.7rem] text-ink/55">
+            ※ 입력 주소: {report.location.address}. 좌표: {report.location.lat.toFixed(5)}, {report.location.lng.toFixed(5)} (Naver Maps Geocoder)
+          </p>
+        </section>
+      ) : null}
+
       {isPlaceholderMode && report.commercial_findings?.property_value ? (
         <PropertyValueCard finding={report.commercial_findings.property_value} />
       ) : null}

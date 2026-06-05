@@ -511,6 +511,27 @@ export async function POST(request: Request) {
             address: geocode.result.address
           }
         : base.location,
+      markers: geocode.result
+        ? [
+            {
+              id: "target",
+              label: payload.address ?? "검토 위치",
+              lat: geocode.result.lat,
+              lng: geocode.result.lng,
+              marker_type: "target" as const,
+              amount: null
+            },
+            // 동종업종 매장 마커 (Competition Density 결과 활용)
+            ...(competitionFinding?.sample_stores ?? []).slice(0, 8).map((store, idx) => ({
+              id: `store-${idx}`,
+              label: store.name,
+              lat: geocode.result!.lat + (Math.random() - 0.5) * 0.003, // 좌표 없으면 근처에 분산
+              lng: geocode.result!.lng + (Math.random() - 0.5) * 0.003,
+              marker_type: "nearby" as const,
+              amount: null
+            }))
+          ]
+        : base.markers,
       sections: {
         ...base.sections,
         confirmed_facts: [

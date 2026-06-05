@@ -170,7 +170,7 @@ export async function runTradeAreaAgent({
       (finding) => ({
         status: finding && finding.insights.length > 1 ? "success" : "missing",
         outputSummary: finding
-          ? `${finding.district} ${finding.quarter} · ${finding.sample_size}개 상권 · ${finding.insights[0] ?? "-"}`
+          ? `${finding.district} ${finding.quarter} · ${finding.sample_size}개 상권 · ${finding.insights.slice(0, 2).join(" / ")} · 키집합=${Object.keys(finding.metrics).filter((k) => (finding.metrics as Record<string, unknown>)[k] != null).join(",")}`
           : "상권분석 데이터 없음"
       })
     );
