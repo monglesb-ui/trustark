@@ -356,26 +356,47 @@ export async function runCompetitionDensityAgent({
         if (result.items.length === 0) {
           const road = extractRoad(payload.address ?? "");
           const dong = extractDong(payload.address ?? "");
-          // Naver Local 5건/쿼리 한도를 우회하기 위해 다양한 키워드 조합 (cafe 동의어 활용)
-          const cafeSynonyms = businessType === "cafe" ? ["카페", "커피", "디저트", "베이커리"] : [businessLabel];
+          // Naver Local 5건/쿼리 한도를 우회 — 동의어 × 위치 토큰으로 12+ 쿼리
+          const cafeSynonyms =
+            businessType === "cafe"
+              ? ["카페", "커피전문점", "디저트카페", "베이커리카페", "브런치카페"]
+              : businessType === "restaurant"
+                ? ["음식점", "맛집", "한식", "양식", "일식"]
+                : [businessLabel];
+
           const queries: string[] = [];
+          // road × synonym (최대 5개)
           for (const kw of cafeSynonyms) {
             if (road) queries.push(`${road} ${kw}`);
           }
-          if (dong) queries.push(`${dong} ${businessLabel}`);
-          if (sigungu) queries.push(`${sigungu} ${businessLabel}`);
+          // dong × synonym (최대 5개)
+          for (const kw of cafeSynonyms) {
+            if (dong) queries.push(`${dong} ${kw}`);
+          }
+          // sigungu × synonym (최대 5개) — fallback
+          for (const kw of cafeSynonyms) {
+            if (sigungu) queries.push(`${sigungu} ${kw}`);
+          }
 
           let combinedItems: NaverLocalItem[] = [];
           let usedQueries: string[] = [];
-          // 모든 쿼리를 시도해 결과 누적 (최대 30건)
+          // 모든 쿼리를 시도해 결과 누적 (최대 50건)
           for (const q of queries) {
             const r = await searchNaverLocal(q, 5);
             if (r.items.length > 0) {
               combinedItems = combinedItems.concat(r.items);
               usedQueries.push(q);
-              if (combinedItems.length >= 30) break;
+              if (combinedItems.length >= 50) break;
             }
           }
+          // 진단 — Naver Local 누적 결과를 trace에 노출
+          trace.record(
+            AGENT,
+            "naverLocalSearch",
+            `queries=${queries.length}개 시도`,
+            `누적=${combinedItems.length}건 (${usedQueries.length}개 쿼리 매칭) · 첫 쿼리="${usedQueries[0] ?? "(없음)"}" · mapx 보유=${combinedItems.filter((i) => i.mapx != null).length}건`,
+            combinedItems.length > 0 ? "success" : "missing"
+          );
           // 중복 제거 (같은 도로명 주소 기준)
           const dedup = Array.from(
             new Map(combinedItems.map((i) => [i.roadAddress || i.address || i.title, i])).values()
@@ -414,6 +435,20 @@ export async function runCompetitionDensityAgent({
               (e) => e.distance > radiusMeters && e.distance <= 1000
             );
             const sorted = [...withinRadius, ...within1km].sort((a, b) => a.distance - b.distance);
+
+            // 진단 — 거리 분포를 trace에 노출
+            const distSummary = enriched
+              .filter((e) => isFinite(e.distance))
+              .slice(0, 10)
+              .map((e) => `${e.item.title.slice(0, 8)}:${Math.round(e.distance)}m`)
+              .join(", ");
+            trace.record(
+              AGENT,
+              "distanceFilter",
+              `enriched=${enriched.length}건`,
+              `${radiusMeters}m 이내=${withinRadius.length} / 1km 이내=${within1km.length} / 거리: ${distSummary}`,
+              sorted.length > 0 ? "success" : "missing"
+            );
 
             if (sorted.length > 0) {
               result = {
