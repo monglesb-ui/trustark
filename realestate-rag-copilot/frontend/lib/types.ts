@@ -335,6 +335,20 @@ export type TradeAreaFinding = {
   diagnostic: string;
 };
 
+/** 소상공인365 iframe 위젯 — 사용자 좌표 적용된 임베드 URL */
+export type SbizWidget = {
+  key: string;
+  label: string;
+  description: string;
+  url: string;
+};
+
+export type SbizWidgets = {
+  widgets: SbizWidget[];
+  has_coordinates: boolean;
+  source: string;
+};
+
 export type DecisionVerdict = "go" | "conditional" | "stop";
 
 export type DecisionFinding = {
@@ -354,6 +368,7 @@ export type AnalyzeResponse = {
   local_context?: NaverContextFinding;
   legal_rag?: LegalRagFinding;
   decision?: DecisionFinding;
+  sbiz_widgets?: SbizWidgets;
   request_property_type?: PropertyType;
   data_statuses?: DataSourceStatus[];
   agent_traces?: AgentTrace[];

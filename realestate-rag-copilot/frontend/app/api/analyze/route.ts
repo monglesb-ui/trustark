@@ -32,6 +32,7 @@ import { runLocalContextLightAgent } from "@/lib/server/agent-runtime/agents/loc
 import { runLegalRagAgent } from "@/lib/server/agent-runtime/agents/legal-rag-agent";
 import { runDecisionAgent } from "@/lib/server/agent-runtime/agents/decision-agent";
 import { runTradeAreaAgent } from "@/lib/server/agent-runtime/agents/trade-area-agent";
+import { buildSbizWidgets } from "@/lib/server/sbiz-widgets";
 import { serverEnv } from "@/lib/server/env";
 import { extractLegalDongQuery, type LegalDongCode } from "@/lib/server/legal-dong";
 import {
@@ -504,6 +505,10 @@ export async function POST(request: Request) {
       local_context: localContextFinding ?? undefined,
       legal_rag: legalRagFinding ?? undefined,
       decision: decisionFinding ?? undefined,
+      sbiz_widgets: buildSbizWidgets({
+        lat: geocode.result?.lat,
+        lng: geocode.result?.lng
+      }),
       location: geocode.result
         ? {
             lat: geocode.result.lat,

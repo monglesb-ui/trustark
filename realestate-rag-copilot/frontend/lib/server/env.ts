@@ -101,7 +101,21 @@ export const serverEnv = {
     process.env.KAKAO_REST_API_KEY ??
     process.env.KAKAO_API_KEY ??
     process.env.NEXT_PUBLIC_KAKAO_REST_API_KEY ??
-    process.env.NEXT_PUBLIC_KAKAO_MAP_KEY
+    process.env.NEXT_PUBLIC_KAKAO_MAP_KEY,
+
+  // 소상공인365 (bigdata.sbiz.or.kr) iframe 위젯 임베드용 certKey 10종
+  sbizKeys: {
+    simple: process.env.SBIZ_SIMPLE_KEY,
+    detail: process.env.SBIZ_DETAIL_KEY,
+    weather: process.env.SBIZ_WEATHER_KEY,
+    map: process.env.SBIZ_MAP_KEY,
+    delivery: process.env.SBIZ_DELIVERY_KEY,
+    sns: process.env.SBIZ_SNS_KEY,
+    sales: process.env.SBIZ_SALES_KEY,
+    store: process.env.SBIZ_STORE_KEY,
+    lifespan: process.env.SBIZ_LIFESPAN_KEY,
+    theme: process.env.SBIZ_THEME_KEY
+  }
 };
 
 export function requireServerEnv(name: keyof typeof serverEnv) {

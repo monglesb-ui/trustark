@@ -190,6 +190,74 @@ function CompetitionDensityCard({
   );
 }
 
+function SbizWidgetsCard({
+  widgets
+}: {
+  widgets: AnalyzeResponse["sbiz_widgets"];
+}) {
+  const [active, setActive] = useState(0);
+  if (!widgets || widgets.widgets.length === 0) return null;
+  const current = widgets.widgets[active];
+
+  return (
+    <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-brass/55 bg-brass/5 p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.16em] text-brass">
+            소상공인365 · 빅데이터 위젯
+          </p>
+          <h3 className="mt-2 font-serif text-2xl font-black text-ink">
+            소상공인 빅데이터 시각화 ({widgets.widgets.length}개 위젯)
+          </h3>
+        </div>
+        <span
+          className={`shrink-0 rounded-md border px-3 py-1.5 text-sm font-black ${
+            widgets.has_coordinates
+              ? "border-moss/45 bg-moss/10 text-moss"
+              : "border-ink/15 bg-ink/5 text-ink/55"
+          }`}
+        >
+          {widgets.has_coordinates ? "좌표 적용됨" : "기본 위치"}
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {widgets.widgets.map((w, idx) => (
+          <button
+            key={w.key}
+            type="button"
+            onClick={() => setActive(idx)}
+            className={`rounded-md border px-3 py-1.5 text-xs font-bold transition ${
+              idx === active
+                ? "border-brass bg-brass text-cream"
+                : "border-ink/15 bg-white text-ink/65 hover:border-brass/40"
+            }`}
+          >
+            {w.label}
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-ink/75">{current.description}</p>
+
+      <div className="mt-4 overflow-hidden rounded-md border border-ink/15 bg-white">
+        <iframe
+          key={current.url}
+          src={current.url}
+          title={current.label}
+          className="h-[640px] w-full"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+
+      <p className="mt-3 text-[0.7rem] text-ink/55">
+        ※ 출처: {widgets.source}. 위젯은 소상공인365 공식 시각화를 우리 페이지에 임베드한 것입니다.
+      </p>
+    </section>
+  );
+}
+
 function DecisionCard({
   finding
 }: {
@@ -1953,6 +2021,10 @@ export function RiskReport({
 
       {isPlaceholderMode && report.legal_rag ? (
         <LegalRagCard finding={report.legal_rag} />
+      ) : null}
+
+      {isPlaceholderMode && report.sbiz_widgets && report.sbiz_widgets.widgets.length > 0 ? (
+        <SbizWidgetsCard widgets={report.sbiz_widgets} />
       ) : null}
 
       {!isPlaceholderMode ? (
