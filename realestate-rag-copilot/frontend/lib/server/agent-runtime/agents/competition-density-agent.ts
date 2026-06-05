@@ -382,10 +382,21 @@ export async function runCompetitionDensityAgent({
           );
 
           if (dedup.length > 0) {
-            // 각 매장 주소를 다시 geocode (WGS84) — 사용자 좌표와 거리 계산용
-            // 최대 25건까지 처리 (성능 고려)
+            // Naver Local의 mapx/mapy는 WGS84 좌표를 1e7 곱한 값.
+            // 직접 변환 가능 — vworld 재호출 불필요 (성능 +25x).
+            // mapx/mapy 누락된 경우만 vworld 호출 fallback.
             const enriched = await Promise.all(
-              dedup.slice(0, 25).map(async (item) => {
+              dedup.slice(0, 30).map(async (item) => {
+                if (typeof item.mapx === "number" && typeof item.mapy === "number") {
+                  const itemLng = item.mapx / 1e7;
+                  const itemLat = item.mapy / 1e7;
+                  // 한국 좌표 범위 sanity check (124~132 lng, 33~39 lat)
+                  if (itemLng >= 124 && itemLng <= 132 && itemLat >= 33 && itemLat <= 39) {
+                    const distance = haversine(lat, lng, itemLat, itemLng);
+                    return { item, distance };
+                  }
+                }
+                // mapx/mapy 없거나 범위 외 — vworld fallback
                 try {
                   const g = await geocodeAddress(item.roadAddress || item.address);
                   if (g.result) {

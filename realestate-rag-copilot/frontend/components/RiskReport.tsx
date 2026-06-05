@@ -196,8 +196,18 @@ function SbizWidgetsCard({
   widgets: AnalyzeResponse["sbiz_widgets"];
 }) {
   const [active, setActive] = useState(0);
+  const [erroredKeys, setErroredKeys] = useState<Set<string>>(new Set());
+
   if (!widgets || widgets.widgets.length === 0) return null;
-  const current = widgets.widgets[active];
+  // 사용자 테스트로 확인된 정상 위젯을 앞에 정렬 (상권지도가 가장 안정)
+  const SAFE_ORDER = ["map", "simple", "detail", "weather", "delivery", "sales", "store", "lifespan", "sns", "theme"];
+  const ordered = [...widgets.widgets].sort(
+    (a, b) => SAFE_ORDER.indexOf(a.key) - SAFE_ORDER.indexOf(b.key)
+  );
+  const visible = ordered.filter((w) => !erroredKeys.has(w.key));
+  const safeActive = Math.min(active, visible.length - 1);
+  const current = visible[safeActive] ?? ordered[0];
+  if (!current) return null;
 
   return (
     <section className="dashboard-panel mt-5 overflow-hidden border-l-4 border-brass/55 bg-brass/5 p-5 sm:p-6">
@@ -222,13 +232,13 @@ function SbizWidgetsCard({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-1.5">
-        {widgets.widgets.map((w, idx) => (
+        {visible.map((w, idx) => (
           <button
             key={w.key}
             type="button"
             onClick={() => setActive(idx)}
             className={`rounded-md border px-3 py-1.5 text-xs font-bold transition ${
-              idx === active
+              idx === safeActive
                 ? "border-brass bg-brass text-cream"
                 : "border-ink/15 bg-white text-ink/65 hover:border-brass/40"
             }`}
@@ -236,6 +246,11 @@ function SbizWidgetsCard({
             {w.label}
           </button>
         ))}
+        {erroredKeys.size > 0 ? (
+          <span className="rounded-md border border-clay/30 bg-clay/10 px-2 py-1 text-[0.65rem] font-bold text-clay">
+            {erroredKeys.size}개 위젯 일시 오류 — 자동 숨김
+          </span>
+        ) : null}
       </div>
 
       <p className="mt-3 text-sm leading-6 text-ink/75">{current.description}</p>
@@ -248,6 +263,13 @@ function SbizWidgetsCard({
           className="h-[640px] w-full"
           loading="lazy"
           referrerPolicy="no-referrer"
+          onError={() =>
+            setErroredKeys((prev) => {
+              const next = new Set(prev);
+              next.add(current.key);
+              return next;
+            })
+          }
         />
       </div>
 
@@ -1973,11 +1995,16 @@ export function RiskReport({
         </section>
       ) : null}
 
-      {isPlaceholderMode && report.business_findings?.competition ? (
+      {isPlaceholderMode &&
+      report.business_findings?.competition &&
+      (report.business_findings.competition.total_stores > 0 ||
+        report.business_findings.competition.all_stores_in_radius > 0) ? (
         <CompetitionDensityCard finding={report.business_findings.competition} />
       ) : null}
 
-      {isPlaceholderMode && report.business_findings?.school_zone ? (
+      {isPlaceholderMode &&
+      report.business_findings?.school_zone &&
+      report.business_findings.school_zone.total_schools_in_district > 0 ? (
         <SchoolZoneCard finding={report.business_findings.school_zone} />
       ) : null}
 
