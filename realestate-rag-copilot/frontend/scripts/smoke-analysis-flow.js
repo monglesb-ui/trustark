@@ -25,7 +25,7 @@ async function main() {
   await page.getByRole("heading", { name: "다음 확인 액션" }).waitFor({ timeout: 15000 });
   await page.getByText("핵심 근거").waitFor({ timeout: 15000 });
   await page.getByRole("button", { name: "Agent 검토" }).click();
-  await page.getByRole("heading", { name: "Agent 검토 노트" }).waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: "Agent 검토 노트", exact: true }).waitFor({ timeout: 15000 });
   await page.getByRole("button", { name: /RAG Evidence Agent/ }).click();
   await page.getByRole("heading", { name: "RAG Evidence Agent 검토 노트" }).waitFor({ timeout: 15000 });
   await page.getByText("다음 확인").waitFor({ timeout: 15000 });
