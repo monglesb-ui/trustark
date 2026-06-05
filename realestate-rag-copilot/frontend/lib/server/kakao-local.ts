@@ -81,6 +81,12 @@ export async function searchKakaoLocal(args: {
     out.attempt.durationMs = Date.now() - started;
     return out;
   }
+  // 카카오 OPEN_MAP_AND_LOCAL 활성화 안 된 경우 매번 403 받음 — 환경변수로 skip 가능
+  if (process.env.KAKAO_SKIP === "true" || process.env.KAKAO_DISABLED === "true") {
+    out.attempt.error = "Kakao Local skipped via env (KAKAO_SKIP=true)";
+    out.attempt.durationMs = Date.now() - started;
+    return out;
+  }
 
   const url = new URL(ENDPOINT);
   url.searchParams.set("query", args.query);

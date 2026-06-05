@@ -191,11 +191,21 @@ export async function searchVworldPlaces(args: {
   const timer = setTimeout(() => controller.abort(), args.timeoutMs ?? 8000);
 
   try {
-    const response = await fetch(url.toString(), {
+    // VWorld는 가끔 502를 반환 — 1회 재시도
+    let response = await fetch(url.toString(), {
       method: "GET",
       cache: "no-store",
       signal: controller.signal
     });
+    if (response.status >= 500 && response.status < 600) {
+      // 짧은 대기 후 1회 재시도
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      response = await fetch(url.toString(), {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal
+      });
+    }
     result.attempt.httpStatus = response.status;
     if (!response.ok) {
       result.attempt.error = `HTTP ${response.status}`;
