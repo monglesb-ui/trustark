@@ -43,14 +43,22 @@ function avg(numbers: number[]): number {
 }
 
 /** 응답 row가 사용자 자치구에 속하는지 판정.
- *  SIGNGU_CD 필드가 응답에 있을 수도, 없을 수도. ADSTRD_CD 앞 5자리 = 시군구코드. */
-function rowMatchesDistrict(row: SeoulTradeAreaRow, signguCd: string): boolean {
-  const explicitSiggng = (row.SIGNGU_CD ?? row.SIGNGU_CD_NM ?? "").toString();
-  if (explicitSiggng && explicitSiggng.startsWith(signguCd)) return true;
-  const adstrd = (row.ADSTRD_CD ?? "").toString();
+ *  여러 가능한 필드명·매칭 방식을 시도. */
+function rowMatchesDistrict(row: SeoulTradeAreaRow, signguCd: string, sigunguName?: string): boolean {
+  // 1) SIGNGU_CD 직접 매칭
+  const explicitSiggng = String(row.SIGNGU_CD ?? row.SGG_CD ?? "");
+  if (explicitSiggng && (explicitSiggng === signguCd || explicitSiggng.startsWith(signguCd))) return true;
+  // 2) SIGNGU_CD_NM (시군구명) 매칭
+  const sigunguNm = String(row.SIGNGU_CD_NM ?? row.SGG_CD_NM ?? row.SIGNGU_NM ?? "");
+  if (sigunguName && sigunguNm && sigunguNm.includes(sigunguName)) return true;
+  // 3) ADSTRD_CD 앞 5자리 = 시군구코드
+  const adstrd = String(row.ADSTRD_CD ?? row.ADSTRD_CODE ?? "");
   if (adstrd && adstrd.startsWith(signguCd)) return true;
-  // 상권코드 prefix가 자치구코드와 매칭되는 패턴 (서울 상권코드 일부는 자치구 prefix 사용)
-  const trdar = (row.TRDAR_CD ?? "").toString();
+  // 4) TRDAR_CD_NM에 자치구명 포함 (예: "강남구 신논현역")
+  const trdarNm = String(row.TRDAR_CD_NM ?? "");
+  if (sigunguName && trdarNm && trdarNm.includes(sigunguName)) return true;
+  // 5) 상권 영역 코드 매칭 (서울 상권코드 일부는 시군구 prefix 사용)
+  const trdar = String(row.TRDAR_CD ?? "");
   if (trdar && trdar.length >= 5 && trdar.startsWith(signguCd.slice(0, 4))) return true;
   return false;
 }
@@ -106,11 +114,32 @@ export async function runTradeAreaAgent({
           throw new Error(`상권 데이터 응답 0건 (${quarters.join(", ")})`);
         }
 
+        // ★ 진단 — 응답 첫 row의 키 집합을 trace에 노출 (실제 필드명 식별용)
+        const footFirstKeys = Object.keys(footResult.rows[0] ?? {}).slice(0, 25).join(",");
+        const salesFirstKeys = salesResult?.rows[0] ? Object.keys(salesResult.rows[0]).slice(0, 20).join(",") : "(없음)";
+        const storesFirstKeys = storesResult?.rows[0] ? Object.keys(storesResult.rows[0]).slice(0, 20).join(",") : "(없음)";
+        trace.record(
+          AGENT,
+          "responseFields",
+          `${usedQuarter} foot=${footResult.rows.length}`,
+          `foot.keys=[${footFirstKeys}] sales.keys=[${salesFirstKeys}] stores.keys=[${storesFirstKeys}]`,
+          "success"
+        );
+
         // 자치구 필터
-        const districtFoot = footResult.rows.filter((r) => rowMatchesDistrict(r, signguCd));
-        const districtSales = salesResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd)) ?? [];
-        const districtStores = storesResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd)) ?? [];
-        const districtOpClo = openCloseResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd)) ?? [];
+        const districtFoot = footResult.rows.filter((r) => rowMatchesDistrict(r, signguCd, sigungu));
+        const districtSales = salesResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd, sigungu)) ?? [];
+        const districtStores = storesResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd, sigungu)) ?? [];
+        const districtOpClo = openCloseResult?.rows.filter((r) => rowMatchesDistrict(r, signguCd, sigungu)) ?? [];
+
+        // 진단 — 자치구 매칭 결과
+        trace.record(
+          AGENT,
+          "districtMatch",
+          `signguCd=${signguCd}`,
+          `foot=${districtFoot.length}/${footResult.rows.length} sales=${districtSales.length}/${salesResult?.rows.length ?? 0} stores=${districtStores.length}/${storesResult?.rows.length ?? 0}`,
+          districtFoot.length > 0 ? "success" : "missing"
+        );
 
         // 매칭 0건이면 전체 응답 평균 (대안)
         const usedFoot = districtFoot.length > 0 ? districtFoot : footResult.rows.slice(0, 50);
