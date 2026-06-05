@@ -318,16 +318,30 @@ export type TradeAreaFinding = {
     avg_weekend_floating?: number;
     /** 추정 매출 (월/원) */
     avg_monthly_sales?: number;
+    /** 평균 매출 건수 (월) */
+    avg_sales_count?: number;
     /** 신규개업 점포 수 */
     new_stores?: number;
     /** 폐업 점포 수 */
     closed_stores?: number;
     /** 점포 총 수 */
     total_stores?: number;
-    /** 20대 거주인구 비율 (%) */
+    /** 프랜차이즈 점포 수 */
+    franchise_stores?: number;
+    /** 20대 유동인구 비율 (%) */
     age_20s_ratio?: number;
-    /** 30대 거주인구 비율 (%) */
+    /** 30대 유동인구 비율 (%) */
     age_30s_ratio?: number;
+    /** 40대 유동인구 비율 (%) */
+    age_40s_ratio?: number;
+    /** 남성 유동 비율 (%) */
+    male_ratio?: number;
+    /** 여성 유동 비율 (%) */
+    female_ratio?: number;
+    /** 가장 붐비는 시간대 (예: "18시") */
+    peak_hour?: string;
+    /** 가장 붐비는 요일 (예: "금요일") */
+    peak_day?: string;
   };
   /** 추가 인사이트 텍스트 */
   insights: string[];

@@ -631,6 +631,7 @@ function TradeAreaCard({
         </span>
       </div>
 
+      {/* 유동인구·매출 — 핵심 메트릭 3분할 */}
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className="rounded-md border border-ink/10 bg-paper p-4">
           <p className="text-[0.7rem] font-black uppercase text-ink/45">평일 유동인구</p>
@@ -653,26 +654,93 @@ function TradeAreaCard({
           </p>
           <p className="mt-1 text-xs font-bold text-ink/55">원/월</p>
         </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">점포 수 (상권 평균)</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-ink">
+      </div>
+
+      {/* 점포 현황 — 4분할 */}
+      <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">총 점포</p>
+          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-ink">
             {fmtNum(finding.metrics.total_stores)}
           </p>
-          <p className="mt-1 text-xs font-bold text-ink/55">개</p>
         </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">신규 개업률</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-moss">
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">프랜차이즈</p>
+          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-ink">
+            {fmtNum(finding.metrics.franchise_stores)}
+          </p>
+        </div>
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">신규</p>
+          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-moss">
             {fmtPct(finding.metrics.new_stores)}
           </p>
         </div>
-        <div className="rounded-md border border-ink/10 bg-paper p-4">
-          <p className="text-[0.7rem] font-black uppercase text-ink/45">폐업률</p>
-          <p className="mt-1 font-serif text-3xl font-black tabular-nums text-clay">
+        <div className="rounded-md border border-ink/10 bg-paper p-3">
+          <p className="text-[0.65rem] font-black uppercase text-ink/45">폐업</p>
+          <p className="mt-1 font-serif text-2xl font-black tabular-nums text-clay">
             {fmtPct(finding.metrics.closed_stores)}
           </p>
         </div>
       </div>
+
+      {/* 인구 구조 — 2분할 (연령대 + 성별) */}
+      {(finding.metrics.age_20s_ratio ||
+        finding.metrics.age_30s_ratio ||
+        finding.metrics.male_ratio) ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {finding.metrics.age_20s_ratio || finding.metrics.age_30s_ratio ? (
+            <div className="rounded-md border border-ink/10 bg-paper p-4">
+              <p className="text-[0.7rem] font-black uppercase text-ink/45">주력 연령대 (유동인구)</p>
+              <div className="mt-2 flex items-end gap-3 text-sm">
+                <span className="font-black">
+                  20대 <span className="tabular-nums">{fmtPct(finding.metrics.age_20s_ratio)}</span>
+                </span>
+                <span className="text-ink/55">·</span>
+                <span className="font-black">
+                  30대 <span className="tabular-nums">{fmtPct(finding.metrics.age_30s_ratio)}</span>
+                </span>
+                <span className="text-ink/55">·</span>
+                <span className="font-black">
+                  40대 <span className="tabular-nums">{fmtPct(finding.metrics.age_40s_ratio)}</span>
+                </span>
+              </div>
+            </div>
+          ) : null}
+          {finding.metrics.male_ratio || finding.metrics.female_ratio ? (
+            <div className="rounded-md border border-ink/10 bg-paper p-4">
+              <p className="text-[0.7rem] font-black uppercase text-ink/45">성별 비율</p>
+              <div className="mt-2 flex items-end gap-3 text-sm">
+                <span className="font-black">
+                  남성 <span className="tabular-nums">{fmtPct(finding.metrics.male_ratio)}</span>
+                </span>
+                <span className="text-ink/55">·</span>
+                <span className="font-black">
+                  여성 <span className="tabular-nums">{fmtPct(finding.metrics.female_ratio)}</span>
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* 피크 시간 / 요일 */}
+      {(finding.metrics.peak_hour || finding.metrics.peak_day) ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {finding.metrics.peak_hour ? (
+            <div className="rounded-md border border-ink/10 bg-paper p-4">
+              <p className="text-[0.7rem] font-black uppercase text-ink/45">피크 시간대</p>
+              <p className="mt-1 font-serif text-xl font-black text-ink">{finding.metrics.peak_hour}</p>
+            </div>
+          ) : null}
+          {finding.metrics.peak_day ? (
+            <div className="rounded-md border border-ink/10 bg-paper p-4">
+              <p className="text-[0.7rem] font-black uppercase text-ink/45">피크 요일</p>
+              <p className="mt-1 font-serif text-xl font-black text-ink">{finding.metrics.peak_day}</p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <ul className="mt-4 grid gap-1.5 rounded-md border border-ink/10 bg-white/85 p-4 text-sm leading-6 text-ink/80">
         {finding.insights.map((ins, i) => (
@@ -2050,9 +2118,7 @@ export function RiskReport({
         <LegalRagCard finding={report.legal_rag} />
       ) : null}
 
-      {isPlaceholderMode && report.sbiz_widgets && report.sbiz_widgets.widgets.length > 0 ? (
-        <SbizWidgetsCard widgets={report.sbiz_widgets} />
-      ) : null}
+      {/* 소상공인365 iframe 위젯 카드는 사용자 결정에 따라 제거 (외부 위젯 가치 < 노이즈) */}
 
       {!isPlaceholderMode ? (
         <section className={`dashboard-panel overflow-hidden border-l-4 p-0 ${tone}`}>

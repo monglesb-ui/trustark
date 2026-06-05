@@ -126,24 +126,78 @@ export async function runTradeAreaAgent({
           usedFoot.map((r) => num(r.WKEND_TLE_FLPOP_CO ?? r.MDWK_TLE_FLPOP_CO))
         );
 
+        // 연령대별 유동 비율 (총합 대비)
+        const totalFlow = avg(usedFoot.map((r) => num(r.TOT_FLPOP_CO))) || 1;
+        const age20s = (avg(usedFoot.map((r) => num(r.AGRDE_20_FLPOP_CO))) / totalFlow) * 100;
+        const age30s = (avg(usedFoot.map((r) => num(r.AGRDE_30_FLPOP_CO))) / totalFlow) * 100;
+        const age40s = (avg(usedFoot.map((r) => num(r.AGRDE_40_FLPOP_CO))) / totalFlow) * 100;
+
+        // 남녀 비율
+        const maleFlow = avg(usedFoot.map((r) => num(r.ML_FLPOP_CO)));
+        const femaleFlow = avg(usedFoot.map((r) => num(r.FML_FLPOP_CO)));
+        const sumMF = maleFlow + femaleFlow;
+        const maleRatio = sumMF > 0 ? (maleFlow / sumMF) * 100 : 0;
+        const femaleRatio = sumMF > 0 ? (femaleFlow / sumMF) * 100 : 0;
+
+        // 시간대별 피크 (TIME_*_FLPOP_CO 중 최대)
+        const hourKeys = [
+          "TMZON_00_06_FLPOP_CO",
+          "TMZON_06_11_FLPOP_CO",
+          "TMZON_11_14_FLPOP_CO",
+          "TMZON_14_17_FLPOP_CO",
+          "TMZON_17_21_FLPOP_CO",
+          "TMZON_21_24_FLPOP_CO"
+        ];
+        const hourLabels = ["00-06시", "06-11시", "11-14시", "14-17시", "17-21시", "21-24시"];
+        const hourValues = hourKeys.map((k) => avg(usedFoot.map((r) => num(r[k]))));
+        const peakHourIdx = hourValues.indexOf(Math.max(...hourValues));
+        const peakHour = hourValues[peakHourIdx] > 0 ? hourLabels[peakHourIdx] : undefined;
+
+        // 요일별 피크
+        const dayKeys = [
+          "MON_FLPOP_CO",
+          "TUES_FLPOP_CO",
+          "WED_FLPOP_CO",
+          "THUR_FLPOP_CO",
+          "FRI_FLPOP_CO",
+          "SAT_FLPOP_CO",
+          "SUN_FLPOP_CO"
+        ];
+        const dayLabels = ["월", "화", "수", "목", "금", "토", "일"];
+        const dayValues = dayKeys.map((k) => avg(usedFoot.map((r) => num(r[k]))));
+        const peakDayIdx = dayValues.indexOf(Math.max(...dayValues));
+        const peakDay = dayValues[peakDayIdx] > 0 ? `${dayLabels[peakDayIdx]}요일` : undefined;
+
         // 매출: 월 평균
         const monthlySales = avg(
           usedSales.map((r) => num(r.MT_AVRG_SALES_AMT ?? r.THSMON_SELNG_AMT))
         );
+        const monthlySalesCount = avg(
+          usedSales.map((r) => num(r.THSMON_SELNG_CO ?? r.MT_AVRG_SALES_CO))
+        );
 
-        // 신규/폐업 / 총 점포
+        // 신규/폐업 / 총 점포 / 프랜차이즈
         const newStores = avg(usedOpClo.map((r) => num(r.OPBIZ_RT ?? r.OPBIZ_STOR_CO)));
         const closedStores = avg(usedOpClo.map((r) => num(r.CLSBIZ_RT ?? r.CLSBIZ_STOR_CO)));
         const totalStoresAvg = avg(usedStores.map((r) => num(r.TOT_STOR_CO ?? r.STOR_CO)));
+        const franchiseStores = avg(usedStores.map((r) => num(r.FRC_STOR_CO)));
 
         const insights: string[] = [];
         if (weekdayFloat > 0)
           insights.push(`평일 평균 유동인구 ${Math.round(weekdayFloat).toLocaleString()}명/일`);
         if (weekendFloat > 0)
           insights.push(`주말 평균 유동인구 ${Math.round(weekendFloat).toLocaleString()}명/일`);
+        if (peakDay) insights.push(`피크 요일: ${peakDay}`);
+        if (peakHour) insights.push(`피크 시간대: ${peakHour}`);
+        if (age20s + age30s > 0)
+          insights.push(`주력 연령대: 20대 ${age20s.toFixed(1)}% / 30대 ${age30s.toFixed(1)}% / 40대 ${age40s.toFixed(1)}%`);
+        if (sumMF > 0)
+          insights.push(`성별 비율: 남성 ${maleRatio.toFixed(1)}% / 여성 ${femaleRatio.toFixed(1)}%`);
         if (monthlySales > 0)
           insights.push(`월 평균 추정매출 ${(monthlySales / 1_000_000).toFixed(0)}백만원`);
         if (totalStoresAvg > 0) insights.push(`상권당 점포 평균 ${Math.round(totalStoresAvg)}개`);
+        if (franchiseStores > 0)
+          insights.push(`프랜차이즈 비율: ${((franchiseStores / totalStoresAvg) * 100).toFixed(1)}%`);
         if (newStores > 0 || closedStores > 0)
           insights.push(`신규/폐업률 ${newStores.toFixed(1)}% / ${closedStores.toFixed(1)}%`);
         if (insights.length === 0) insights.push("상권 데이터 매칭 부족 — 자치구 평균치 표시");
@@ -157,9 +211,18 @@ export async function runTradeAreaAgent({
             avg_weekday_floating: weekdayFloat || undefined,
             avg_weekend_floating: weekendFloat || undefined,
             avg_monthly_sales: monthlySales || undefined,
+            avg_sales_count: monthlySalesCount || undefined,
             new_stores: newStores || undefined,
             closed_stores: closedStores || undefined,
-            total_stores: totalStoresAvg || undefined
+            total_stores: totalStoresAvg || undefined,
+            franchise_stores: franchiseStores || undefined,
+            age_20s_ratio: age20s || undefined,
+            age_30s_ratio: age30s || undefined,
+            age_40s_ratio: age40s || undefined,
+            male_ratio: maleRatio || undefined,
+            female_ratio: femaleRatio || undefined,
+            peak_hour: peakHour,
+            peak_day: peakDay
           },
           insights,
           source: "서울 상권분석 서비스 (data.seoul.go.kr / 4개 endpoint 종합)",
